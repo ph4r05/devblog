@@ -46,6 +46,38 @@ the beginning.
 
 ## Modifications
 
+- TODO: lz4 frame format
+- TODO: lz4 block format
+- TODO: lz4 decompressor state
+- TODO: lz4 optimal breakdown (dictionaries, not linked), max block size on frame.
+
+```c
+struct LZ4F_dctx_s {
+    LZ4F_frameInfo_t frameInfo;  // basic frame info
+    U32    version;
+    U32    dStage;
+    U64    frameRemainingSize;
+    size_t maxBlockSize;    // max 4MB block
+    size_t maxBufferSize;   // maxBlockSize + 128 kB in linked mode
+    BYTE*  tmpIn;           // memory buffer for input
+    size_t tmpInSize;
+    size_t tmpInTarget;
+    BYTE*  tmpOutBuffer;    // memory buffer for output
+    const BYTE*  dict;      // decompress dictionary, 64 kB, offset to tmpOutBuffer
+    size_t dictSize;
+    BYTE*  tmpOut;          // output buffer, offset to tmpOutBuffer
+    size_t tmpOutSize;      // size of the data in the output buffer
+    size_t tmpOutStart;     // start of the data in the output buffer
+    XXH32_state_t xxh;      // checksum state 48 B (frame-wise)
+    BYTE   header[16];      // frame header copy
+};  /* typedef'd to LZ4F_dctx in lz4frame.h */
+```
+
+As you can see the state has quite simple structure. There are 2 memory buffers - input, output (dict), checksum state
+and frame header info. So if this complete state is serialized it corresponds to the decompressor snapshot. So
+after the decompressor loads serialized state it can continue.
+
+
 ### State marshalling
 
 In order to recover also from program crashes you can marshal / serialize
