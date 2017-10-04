@@ -44,7 +44,30 @@ It uses `requests` library to open the network connection and `read()` from it. 
 Disadvantage of this approach is in-memory only state. When system reboots the state is lost and you have to start from
 the beginning.
 
-### Modifications
+## Modifications
+
+### State marshalling
+
+In order to recover also from program crashes you can marshal / serialize
+the decompressor context to the (byte) string which can be later
+unmarshalled / deserialized and continue from that point. Marshalled state
+can be stored e.g., to a file. More in test `test_decompressor_fp_marshalling`.
+
+### Random access archive
+
+Situation: 800 GB LZ4 encrypted file. You want random access the file
+ so it can be map/reduced or processed in parallel from different offsets.
+
+Marshalled decompressor state takes only the required
+amount of memory. If the state dump is performed on the block boundaries
+(i.e., when the size hint from the previous call was provided by the input stream)
+ the marhsalled size would be only 184 B, in the best case scenario, 66 kB in the worse case -
+ when LZ4 file is using linked mode.
+
+Anyway, when state marshalling returns this small state the application
+can build a meta file, the mapping: position in the input stream -> decompressor context.
+With this meta file a new decompressor can jump to the particular checkpoint.
+
 
 
 [lz4]: https://github.com/lz4/lz4
