@@ -55,7 +55,7 @@ for idx, chunk in enumerate(lz4framed.Decompressor(r.raw)):
 
 If there is a timeout / connection reset or network glitch either the exception is thrown or empty data is returned from the `read()` which causes decompressor to fail.
 
-## Temporal outage
+## Temporal outage - reconnect wrapper
 
 [LZ4] decompressor holds decompressing state internally in the memory. One solution to survive network glitches without need to modify the LZ4 library is to wrap the network file-like object with the object transparently reconnecting to the data source on error.
 
@@ -64,7 +64,15 @@ blocks, retries to connect and reads more data. When more data is loaded it is r
 even if there is 30 minutes blackout the read will resume.
 
 I've implemented this solution here: [ReconnectingLinkInputObject](https://github.com/ph4r05/codesign-analysis/blob/9d557e7eeeeb0c461d107881278160c85a04cd56/codesign/input_obj.py#L410).
-It uses `requests` library to open the network connection and `read()` from it. If there is an exception or unexpected end of data it back-offs, reconnects and uses `Range` HTTP header to request the following part of the data.
+It wraps `requests` library to open the network connection and read from it. If there is an exception or unexpected end of data it back-offs, reconnects and uses `Range` HTTP header to request unseen part of the data from the server.
+
+```python
+import requests, lz4framed, input_obj
+url = 'https://ph4r05.deadcode.me/static/lz4/certificates.20171002T020001.15.json.lz4'
+iobj = input_obj.ReconnectingLinkInputObject(url=url, timeout=5*60, max_reconnects=1000)
+for idx, chunk in enumerate(lz4framed.Decompressor(iobj)):
+    print(chunk)
+```
 
 Disadvantage of this approach is in-memory only state. When system reboots the state is lost and you have to start from
 the beginning.
