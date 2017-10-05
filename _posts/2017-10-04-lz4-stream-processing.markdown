@@ -1,6 +1,6 @@
 ---
 layout: post
-title:  "LZ4 streamed processing"
+title:  "LZ4 streamed processing of very large files"
 date:   2017-10-04 22:10:39 +0200
 categories: blog
 excerpt_separator: <!-- more -->
@@ -15,24 +15,49 @@ Processing terabyte large LZ4 files in a streaming fashion with resumption and r
 
 LZ4 is lossless compression algorithm, providing compression speed at 400 MB/s per core, scalable with multi-cores CPU. It features an extremely fast decoder, with speed in multiple GB/s per core, typically reaching RAM speed limits on multi-core systems [lz4].
 
-LZ4 is often used to compress large files (hundreds of GBs), e.g., [Censys] uses it to archive large JSON files.
+LZ4 is often used to compress large files (hundreds of GBs), e.g., [Censys] uses it to archive Internet-wide
+ TLS scans - large JSON files.
 LZ4 typically reduces such JSON file to 20-50% of the original size.
+
+[![Censys IPv4 scan snapshot](/static/lz4/censys_ipv4.png)](/static/lz4/censys_ipv4.png)
+
+`curl --head` returns `Content-Length: 242919507913` which is roughly 226.24 GB reducing the file size to 23% of the original size. JSON is quite redundant (field names) making it good subject to compression.
 
 ## Motivation
 
-LZ4 is very fast but major disadvantage is missing _random access_ to the compressed file.
-Imagine you have to process 1TB `json.lz4` file with one JSON record per line with only limited amount of memory.
-LZ4 is designed the streaming processing is possible so just choose library that supports it.
+Imagine you have to process 1TB `json.lz4` file with one JSON record per line with limited amount of memory and disk storage. You definitely cannot download the file or load it to the memory.
+Fortunately LZ4 is designed the streaming processing is possible so you only need to choose a library that supports it.
+
+There is a `lz4` package available on RHEL/Ubuntu to work with LZ4 archives, e.g., fetching the first record from the compressed json can be done like this:
+
+```bash
+$> curl -s -L 'https://ph4r05.deadcode.me/static/lz4/certificates.20171002T020001.15.json.lz4' | lz4 -d -c - | head -n 1
+{"fingerprint_sha256":"f9000003ebc6a586e0076ee11f446cf2a844461bfee6e9d2735fabfd99aba231","raw":"MIIDUTCCAjmgAwIBAgIFFIdXdAkwDQYJKoZIhvcNAQELBQAwUjELMAkG ....
+```
+
+Major disadvantage of LZ4 is lack of _random access_ to the compressed file.
 
 The problem is when you have processed already 800 GB and now suddenly network glitches or there is some firewall problem or system reboots. There is currently no way to return from the last point so you basically have to download the whole file again.
 
-## Solutions
+I will demonstrate solutions in Python, using [py-lz4framed] library.
 
-I will demonstrate the approach in Python, using [py-lz4framed] library.
+## Stream processing
 
-### Temporal outage
+LZ4 decompressor accepts file-like object with `read()` method. It can be e.g., locally opened file or a network socket. The naive way to read a remote file in a streaming fashion is to open the remote connection and pass the socket object to the decompressor like this:
 
-[LZ4] decompressor holds decompressing state in the memory. One solution to survive network glitches without need to modify the LZ4 library is to wrap the network read with the object transparently reconnecting to the data source on error.
+```python
+import requests, lz4framed
+url = 'https://ph4r05.deadcode.me/static/lz4/certificates.20171002T020001.15.json.lz4'
+r = requests.get(url, stream=True, allow_redirects=True)
+for idx, chunk in enumerate(lz4framed.Decompressor(r.raw)):
+    print(chunk)
+```
+
+If there is a timeout / connection reset or network glitch either the exception is thrown or empty data is returned from the `read()` which causes decompressor to fail.
+
+## Temporal outage
+
+[LZ4] decompressor holds decompressing state internally in the memory. One solution to survive network glitches without need to modify the LZ4 library is to wrap the network file-like object with the object transparently reconnecting to the data source on error.
 
 In this way LZ4 decompressor is fed with the uninterrupted data stream. When error on read occurs the wrapping object
 blocks, retries to connect and reads more data. When more data is loaded it is returned to the decompressor. So
@@ -44,7 +69,7 @@ It uses `requests` library to open the network connection and `read()` from it. 
 Disadvantage of this approach is in-memory only state. When system reboots the state is lost and you have to start from
 the beginning.
 
-## Modifications
+## LZ4 Modifications
 
 - TODO: lz4 frame format
 - TODO: lz4 block format
