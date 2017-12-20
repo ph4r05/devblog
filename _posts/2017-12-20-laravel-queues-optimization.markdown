@@ -8,7 +8,7 @@ excerpt_separator: <!-- more -->
 ---
 
 Analysis of the database queueing mechanism with few optimizations proposed.
-Pessimistic vs. Optimistic locking.
+Deadlocks, pessimistic vs. Optimistic locking.
 
 <!-- more -->
 
@@ -117,9 +117,44 @@ ID  Waiting  Mode  DB        Table  Index                         Special       
  5        1  X     keychest  jobs   jobs_queue_at_index           rec but not gap           0
 ```
 
-The worker ``
+The worker `4` is selecting the nex available job. The select tries to lock
+the primary key index because of the `FOR UPDATE`.
 
-### Laravel <=5.4 deadlock
+The worker `5` processed the job and it is trying to issue delete query to remove the job
+from the table. The delete lock is already holding primary key lock. As the deletion 
+affects also `jobs_queue_at_index` index the query asks for that lock.
+
+There is a third select query of another worker, not displayed in this listing (produced by `innotop`) which 
+holds lock on `jobs_queue_at_index`.
+
+This in global picture causes a deadlock. In the modern MySQL database
+there is `innodb_deadlock_detect` set to 1 by default. This means the deadlock
+is detected immediately and one transaction is rolled back to handle the deadlock. 
+
+With older databases or `innodb_deadlock_detect=0` the deadlock will cause 
+queries to stall. Each query is waiting for locks that cannot be locked for them.
+Until `innodb_lock_wait_timeout` is reached and the rollback is issued. 
+
+Deadlocking is a serious problem if your database does not support `innodb_deadlock_detect`
+because it paralyzes the whole job queueing mechanism.
+
+### Rollback consequence
+
+MySQL usually picks the delete query for the rollback.
+
+Note this is the worse option of the two. If select fails it does no harm,
+the exception is thrown but worker swallows it and tries to load a new job again - issue the select again.  
+
+On the other hand the delete rollback causes a little troubles.
+As the job remains in the `jobs` table due to deletion fail, it became expired
+and processed again by another worker. If the next worker again fails with the deletion 
+the process repeats. 
+
+Due to this problem it can happen the job is processed more than once before deleting from the queue.
+This may be serious problem for some jobs. It is good to keep in mind this situation may ocur
+when implementing the jobs logic. 
+
+### Laravel ≤ 5.4 deadlock
 
 Before Laravel 5.4 the index was made of `(queue, reserved_at)` which caused another deadlock.
 In the Laravel 5.5 the index is just `(queue)` but the upgrade will not change the existing job table
@@ -141,9 +176,17 @@ ID    Waiting  Mode  DB        Table  Index                         Special     
 Here we see 2 workers deadlocking on the first query.
 Worker `8767` is trying to claim the job by issuing the `UPDATE` query.
 It locked the record *for update* by the previous select and now holds `PRIMARY` key index.
-As the `jobs_queue_reserved_at_index` index is 
+As the `jobs_queue_reserved_at_index` index is affected by the update query it has to be locked too.
 
-Worker `8768` is performing the select with the 
+Worker `8768` is performing the select with the *for update* locking - asking for a primary key lock.
+
+There is another select query of another worker, not displayed in the listing holding the `jobs_queue_reserved_at_index` index.
+
+This again causes a deadlock.
+
+## Deadlock handling
+
+ 
 
 
 <!-- refs -->
