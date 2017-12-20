@@ -1,0 +1,163 @@
+---
+layout: post
+title:  "Laravel queueing optimization"
+date:   2017-10-04 22:10:39 +0200
+categories: blog
+excerpt_separator: <!-- more -->
+
+---
+
+Analysis of the database queueing mechanism with few optimizations proposed.
+Pessimistic vs. Optimistic locking.
+
+<!-- more -->
+
+## Intro
+
+In the [previous article] I performed a simple benchmark of the basic 
+[Laravel] queueing mechanisms. For the benchmarking I created a new Laravel 5.5 [project].
+
+During the development of another Laravel based project I came across a 
+deadlock problem of the Database worker. The issue is described
+in the Laravel issue [#7046].
+
+In the following section I will decribe the pitfals of the database 
+queueing in the Laravel, deadlock that happen and the solution to handle and 
+avoid them.
+
+### Job claim mechanism
+
+The jobs are stored in the `jobs` table in the database.
+Available workers are then processin the available jobs. 
+Each worker does the following:
+
+```sql
+BEGIN TRANSACTION;
+SELECT * FROM `jobs` WHERE `queue` = ? AND ((`reserved_at` IS NULL and `available_at` <= NOW()) OR (`reserved_at` <= ?)) ORDER BY `id` ASC limit 1 FOR UPDATE; 
+UPDATE `jobs` SET `reserved_at` = NOW(), `attempts` = `attempts` + 1 WHERE `id` = ?;
+COMMIT;
+```
+
+So the first `select` essentially selects the first available job in the FIFO manner.
+Job is available if `available_at <= NOW()` or the job is expired (will get to that).
+The important part here is `FOR UPDATE`. It asks for an exclusive lock for the 
+selected record meaning "we are going to update the record in the transaction". 
+
+The second update query is claiming the particular job by the worker.
+The worker claims the job for itself by setting `reserved_at` field to the current time.
+If the `reserved_at < NOW() + 90` then the job is not eligible for running and
+won't be selected by other jobs by the `select` query.
+
+If the job is present in the `jobs` table after some configured time (e.g., 90 seconds)
+the job is considered *expired* and is again eligible to run (if attempt counter is not too high). 
+This is quite robust mechanism - if some error interrupts job execution (e.g., a runtime exception, server reboot)
+the job is not deleted from the table and is re-run after the 90 seconds.
+
+The `reserved_at` criteria guarantees that the job will be run *at least once*
+before removing from the database (unless the attempt counter is too high)
+
+After the job is processed the job is deleted from the database:
+
+```sql
+BEGIN TRANSACTION;
+SELECT * from `jobs` WHERE `id` = ? FOR UPDATE;
+DELETE FROM `jobs` WHERE `id` = ?;
+COMMIT;
+``` 
+
+Note: You may notice the `select` query is a bit redundant. 
+The code performing the deletion looks like this:
+
+```php
+$this->database->transaction(function () use ($queue, $id) {
+    if ($this->database->table($this->table)->lockForUpdate()->find($id)) {
+        $this->database->table($this->table)->where('id', $id)->delete();
+    }
+});
+```
+
+The reason why there the first select is performed is not quite clear.
+My hypothesis is it was some workaround for deadlocks or some refactoring artifact.
+I will show the select is not needed, job can be removed immediately without
+changing the properties of the system.
+
+The `jobs` database in Laravel 5.5:
+
+```sql
+CREATE TABLE `jobs` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `queue` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `payload` longtext COLLATE utf8mb4_unicode_ci NOT NULL,
+  `attempts` tinyint(3) unsigned NOT NULL,
+  `reserved_at` int(10) unsigned DEFAULT NULL,
+  `available_at` int(10) unsigned NOT NULL,
+  `created_at` int(10) unsigned NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `jobs_queue_index` (`queue`)
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+```
+
+### Deadlocks
+
+There is a possible deadlocks when multiple workers interfere on the `jobs`
+table with the two queries shown above.
+
+The example of a deadlock:
+
+```
+_____________________________________________________________________________________________ Deadlock Transactions _____________________________________________________________________________________________
+ID  Timestring           User      Host       Victim  Time   Undo  LStrcts  Query Text                                                                                                                           
+ 4  2017-12-09 09:54:02  keychest  localhost  Yes     00:00     0        3  select * from `jobs` where `queue` = ? and ((`reserved_at` is null and `available_at` <= ?) or (`reserved_at` <= ?)) order by `id` as
+ 5  2017-12-09 09:54:02  keychest  localhost  No      00:00     1        3  delete from `jobs` where `id` = ?                                                                                                    
+
+______________________________________ Deadlock Locks _______________________________________
+ID  Waiting  Mode  DB        Table  Index                         Special          Ins Intent
+ 4        1  X     keychest  jobs   PRIMARY                       rec but not gap           0
+ 5        0  X     keychest  jobs   PRIMARY                       rec but not gap           0
+ 5        1  X     keychest  jobs   jobs_queue_at_index           rec but not gap           0
+```
+
+The worker ``
+
+### Laravel <=5.4 deadlock
+
+Before Laravel 5.4 the index was made of `(queue, reserved_at)` which caused another deadlock.
+In the Laravel 5.5 the index is just `(queue)` but the upgrade will not change the existing job table
+thus you may experience the following deadlock also in Laravel 5.5 project:
+
+```
+______________________________________________________________________________________________________ Deadlock Transactions ______________________________________________________________________________________________________
+ID    Timestring           User      Host       Victim  Time   Undo  LStrcts  Query Text                                                                                                                                           
+8767  2017-12-11 18:08:03  keychest  localhost  No      00:00     1        5  update `jobs` set `reserved_at` = ?, `attempts` = ? where `id` = ?                                                                                   
+8768  2017-12-11 18:08:03  keychest  localhost  Yes     00:00     0        4  select * from `jobs` where `queue` = ? and ((`reserved_at` is null and `available_at` <= ?) or (`reserved_at` <= ?)) order by `id` asc limit 1 for up
+
+_______________________________________ Deadlock Locks ________________________________________
+ID    Waiting  Mode  DB        Table  Index                         Special          Ins Intent
+8767        0  X     keychest  jobs   PRIMARY                                                 0
+8767        1  X     keychest  jobs   jobs_queue_reserved_at_index  gap before rec            1
+8768        1  X     keychest  jobs   PRIMARY                       rec but not gap           0
+```
+
+Here we see 2 workers deadlocking on the first query.
+Worker `8767` is trying to claim the job by issuing the `UPDATE` query.
+It locked the record *for update* by the previous select and now holds `PRIMARY` key index.
+As the `jobs_queue_reserved_at_index` index is 
+
+Worker `8768` is performing the select with the 
+
+
+<!-- refs -->
+[previous article]: https://ph4r05.deadcode.me/blog/2017/10/04/laravel-queueing-benchmark.html
+[Laravel]: https://laravel.com/docs/5.5/
+[#7046]: https://github.com/laravel/framework/issues/7046
+
+[job queueing]: https://laravel.com/docs/5.5/queues
+[project]: https://github.com/ph4r05/laravel-queueing-benchmark
+[c4.large]: https://aws.amazon.com/ec2/instance-types/
+[burst credit]: https://aws.amazon.com/blogs/aws/new-burst-balance-metric-for-ec2s-general-purpose-ssd-gp2-volumes/
+[Forpsi]: https://www.forpsi.com/virtual/
+
+
+
+
+
