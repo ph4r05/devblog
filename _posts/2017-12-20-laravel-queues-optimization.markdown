@@ -156,7 +156,7 @@ when implementing the jobs logic.
 ### Laravel ≤ 5.4 deadlock
 
 Before Laravel 5.4 the index was made of `(queue, reserved_at)` which caused another deadlock.
-In the Laravel 5.5 the index is just `(queue)` but the upgrade will not change the existing job table
+In the Laravel 5.5 the index is just `(queue)` but the upgrade does not change the existing job table
 thus you may experience the following deadlock also in Laravel 5.5 project:
 
 ```
@@ -221,7 +221,7 @@ to a state the finished job is removed, eventually.
 
 The deadlock still happens, just the occurrence is changed. 
 
-## Deadlock handling - removing the `queue index`
+## Deadlock handling - removing the queue index
 
 In order to avoid deadlock an elimination of a required condition is needed. 
 In this case the obvious move is to remove `jobs_queue_at_index` index.
