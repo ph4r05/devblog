@@ -183,7 +183,104 @@ There is another select query of another worker, not displayed in the listing ho
 
 This again causes a deadlock.
 
-## Deadlock handling
+## Deadlock handling - retry
+
+There is one simple workaround to handle multiple runs of the job: 
+
+```php
+$this->database->transaction(function () use ($queue, $id) {
+    if ($this->database->table($this->table)->lockForUpdate()->find($id)) {
+        $this->database->table($this->table)->where('id', $id)->delete();
+    }
+}, 5);
+```
+
+The number of attempts for performing the delete operation is set to 5. 
+It is kind of magic constant approach but works pretty well in practice - shown below.
+
+The probability the job won't be removed after 5 attempts is very low thus
+with this workaround job is run exactly once with very high probability.
+
+However the deadlock problem is still present which is a problem for older database servers.
+
+## Deadlock handling - delete mark 
+
+Another way of fixing the multiple job run problem is adding a new column to the jobs table:
+
+```sql
+ALTER TABLE jobs ADD COLUMN delete_mark TINYINT(1) NOT NULL DEFAULT 0;
+```
+
+Instead of deleting the job the `delete_mark` is set to 1. Since this particular update
+cannot cause a deadlock (not requiring index lock) it will always commit so the job 
+is not executed more than once.
+
+When the worker asking for next available job gets a job with `delete_mark`
+the job is removed from the database. Even if the delete fails this converges
+to a state the finished job is removed, eventually. 
+
+The deadlock still happens, just the occurrence is changed. 
+
+## Deadlock handling - removing the `queue index`
+
+In order to avoid deadlock an elimination of a required condition is needed. 
+In this case the obvious move is to remove `jobs_queue_at_index` index.
+
+This method works and no deadlock will occur anymore but the performance is
+degraded significantly (see results below).
+
+
+## Summary
+
+The proposed methods can improve the system properties by assuring the job is run exactly 
+once. If the database supports deadlock detection the system recovers quickly. However 
+the older database versions will stall the queues significantly. 
+
+## Optimistic locking
+
+The previous approach uses so called *pessimistic locking*. Pessimistic in a sense the caller
+assumes there will be a conflict on rows so it locks the relevant records for further update by exclusive lock. 
+Other concurrent transactions cannot read or modify the record due to exclusive lock.
+
+Optimistic locking does not use explicit locking mechanism by the database. 
+The integrity is maintained via conditioning update by load time information. 
+Lets demonstrate the it on the workers:
+
+```sql
+ALTER TABLE jobs ADD COLUMN version int(10) unsigned NOT NULL DEFAULT 0;
+```
+
+The select query with job claim:
+
+```sql
+SELECT * FROM `jobs` WHERE `queue` = ? AND ((`reserved_at` IS NULL and `available_at` <= NOW()) OR (`reserved_at` <= ?)) ORDER BY `id` ASC limit 1 FOR UPDATE; 
+UPDATE `jobs` SET `reserved_at` = NOW(), `attempts` = `attempts` + 1, version = version + 1 WHERE `id` = ? AND version=?;
+```
+
+The difference is there is no transaction required to wrap the logic of select + claim.
+For optimistic locking we added a new column `version`. The subsequent update is conditioned on the 
+select-time value of the version column. If the update succeeds it increments the version column.  
+
+If the record was modified between select and update by another worker the version value will 
+change and the update will fail.
+
+Multiple workers tries to load next available job but the only one will succeed to update the version column 
+due to transaction properties of single queries. The key here is `affecter rows` variable returned by the
+SQL server. If the return value is 1 then the worker succeeded with claiming the job and can proceed with working
+on it. Other workers will get 0 and try to load next available job again - got preempted by another worker.
+
+Benefits of the optimistic locking:
+
+- No DB lock so no deadlocks.
+- No explicit transactions required. Single auto-commit transactions are enough.
+- No need to maintain connection over the whole transaction.
+
+Disadvantage is visible if jobs are rather short and workers compete on the next available jobs.
+The preemption is quite often which increases overhead of the queueing system.
+
+
+
+
 
  
 
@@ -192,6 +289,7 @@ This again causes a deadlock.
 [previous article]: https://ph4r05.deadcode.me/blog/2017/10/04/laravel-queueing-benchmark.html
 [Laravel]: https://laravel.com/docs/5.5/
 [#7046]: https://github.com/laravel/framework/issues/7046
+[optimistic locking]: https://vladmihalcea.com/2014/09/14/a-beginners-guide-to-database-locking-and-the-lost-update-phenomena/
 
 [job queueing]: https://laravel.com/docs/5.5/queues
 [project]: https://github.com/ph4r05/laravel-queueing-benchmark
