@@ -21,15 +21,14 @@ During the development of another Laravel based project I came across a
 deadlock problem of the Database worker. The issue is described
 in the Laravel issue [#7046].
 
-In the following section I will decribe the pitfals of the database 
-queueing in the Laravel, deadlock that happen and the solution to handle and 
+In the following section I will describe the pitfalls of the database 
+queueing in the Laravel, deadlocks and the solution to handle and 
 avoid them.
 
 ### Job claim mechanism
 
 The jobs are stored in the `jobs` table in the database.
-Available workers are then processin the available jobs. 
-Each worker does the following:
+Available workers are querying the available jobs for processing by the following query:
 
 ```sql
 BEGIN TRANSACTION;
@@ -38,23 +37,23 @@ UPDATE `jobs` SET `reserved_at` = NOW(), `attempts` = `attempts` + 1 WHERE `id` 
 COMMIT;
 ```
 
-So the first `select` essentially selects the first available job in the FIFO manner.
-Job is available if `available_at <= NOW()` or the job is expired (will get to that).
-The important part here is `FOR UPDATE`. It asks for an exclusive lock for the 
+The first `select` essentially selects the first available job in the FIFO manner.
+Job is available if `available_at <= NOW()` or the job is *expired* (will get to that later).
+The important part of the select query is `FOR UPDATE`. It asks for an *exclusive lock* for the 
 selected record meaning "we are going to update the record in the transaction". 
 
-The second update query is claiming the particular job by the worker.
+The another `update` query is claiming the particular job by the worker.
 The worker claims the job for itself by setting `reserved_at` field to the current time.
 If the `reserved_at < NOW() + 90` then the job is not eligible for running and
 won't be selected by other jobs by the `select` query.
 
 If the job is present in the `jobs` table after some configured time (e.g., 90 seconds)
 the job is considered *expired* and is again eligible to run (if attempt counter is not too high). 
-This is quite robust mechanism - if some error interrupts job execution (e.g., a runtime exception, server reboot)
+This is quite a robust mechanism - if some error interrupts the job execution (e.g., a runtime exception, server reboot)
 the job is not deleted from the table and is re-run after the 90 seconds.
 
 The `reserved_at` criteria guarantees that the job will be run *at least once*
-before removing from the database (unless the attempt counter is too high)
+before removing from the database (unless the attempt counter is too high).
 
 After the job is processed the job is deleted from the database:
 
@@ -99,7 +98,7 @@ CREATE TABLE `jobs` (
 
 ### Deadlocks
 
-There is a possible deadlocks when multiple workers interfere on the `jobs`
+There is a possible deadlock when multiple workers interfere on the `jobs`
 table with the two queries shown above.
 
 The example of a deadlock:
@@ -124,12 +123,12 @@ The worker `5` processed the job and it is trying to issue delete query to remov
 from the table. The delete lock is already holding primary key lock. As the deletion 
 affects also `jobs_queue_at_index` index the query asks for that lock.
 
-There is a third select query of another worker, not displayed in this listing (produced by `innotop`) which 
+There is also a third select query of another worker, not displayed in this listing (produced by `innotop`) which 
 holds lock on `jobs_queue_at_index`.
 
-This in global picture causes a deadlock. In the modern MySQL database
-there is `innodb_deadlock_detect` set to 1 by default. This means the deadlock
-is detected immediately and one transaction is rolled back to handle the deadlock. 
+This in global picture causes a deadlock - each transaction is waiting for a lock that is held by another transaction. 
+In the modern MySQL database there is `innodb_deadlock_detect` set to 1 by default. This means the deadlock
+is detected immediately and one transaction is rolled back to remove the deadlock condition and progress. 
 
 With older databases or `innodb_deadlock_detect=0` the deadlock will cause 
 queries to stall. Each query is waiting for locks that cannot be locked for them.
