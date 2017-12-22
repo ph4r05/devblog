@@ -30,11 +30,11 @@ The benchmarks were performed on 2 VPS:
 - 1x VCPU, 1 GB RAM
 - SSD storage, without IO throttling
 
-Both servers are running the same software, latest Ubuntu 16.0.6.
-MySQL version: 5.7.20, PHP 7.1 with opcache. The packages are in the default 
-configuration. 
+Both servers are running the same software, latest Ubuntu 16.04.3 LTS.
+MySQL version: 5.7.20, PHP 7.1.12-3 with opcache, 
+PostgreSQL 9.5.10, Redis 3.0.6, Beanstalkd 1.10.  
 
-TODO: postgre version, php exact version, beanstalkd, redis versions.
+The packages are in the default configuration. 
 
 ## Method
 
@@ -80,6 +80,8 @@ Amazon C4 offers 2 thread cores and the processor is a bit faster than forpsi:
 | DB-mysql | 452.04
 | DB-pgsql | 273.13
 {:.mbtablestyle3}
+
+<br/>
 
 ## Burst credit
 
