@@ -39,9 +39,9 @@ The packages are in the default configuration.
 ## Method
 
 - There are always 10 workers (processing the jobs) started before the test.
-- Jobs being processed are empty - doing nothing. This way I meassure the job 
+- Jobs being processed are empty - doing nothing. This way I measure the job 
 scheduling system overhead as the workers are competing over the jobs.
-- 10 000 Jobs are pregenerated on the job queue. During the pregeneration the 
+- 10 000 Jobs are pre-generated on the job queue. During the pre-generation the 
 Laravel is in the *maintenance* mode - not processing the jobs.
 - After the jobs are generated Laravel is switched to normal mode - jobs processing will start.
 - Sample the size of the job queue each 0.5 seconds. Measure the time needed to process 10 000 jobs.
@@ -49,10 +49,15 @@ Laravel is in the *maintenance* mode - not processing the jobs.
 
 The overall test produces average jobs per second.  
 
+Note the Database queue driver has been slightly modified to overcome 
+the current limitation of running one job multiple times. The original
+implementation fails to delete some of the finished job from the database under high load.
+More on this problem in the next blog post.
+
 ## Results
 
 The box plot below is a box chart visualizing the statistical distribution of the
-jobs per second in 10 runs for each configuration.
+jobs per second in 10 runs for each configuration.   
 
 [![Benchmark results](/static/queue01/benchmark_base.png)](/static/queue01/benchmark_base.png)
 
