@@ -332,7 +332,7 @@ of a job being processed in the round \\( x_i \\).
 \\( E[X] = \sum_{i=1}^{\infty} i \cdot \left( \frac{N-1}{N} \right)^{N^{i-1}} \cdot \left(1 - \left(\frac{N-1}{N}\right)^N \right) \\)
 where \\( \left(\frac{N-1}{N}\right)^N \\) is the probability a job won't be selected in the given round.
 
-\\( E[X] \approx 1.6 \\) for N ≥ 2. Thus on average the job is processed in 1.6 round. 
+\\( E[X] \approx 1.6 \\) for N ≥ 2. Thus on average the job is processed in 1.6 rounds. 
 
 ## Results
 
@@ -358,9 +358,12 @@ Forpsi:
 | Method | Jobs per second |
 |:-------|:----------------|
 | DBP-mysql-0-0-5 | 190.47|
+| DBP-mysql-noindex | 90 |
+| DBP-mysql-nofetch | 157.43 |
 | DBO-mysql-0 | 90.33|
 | DBO-mysql-1 | 210.06|
 | DBP-pgsql-0-0-5 | 206.39|
+| DBP-pgsql-nofetch | 183.15|
 | DBO-pgsql-0 | 54.1|
 | DBO-pgsql-1 | 201.06|
 {:.mbtablestyle3}
@@ -374,9 +377,11 @@ C4.large:
 | Method | Jobs per second |
 |:-------|:----------------|
 | DBP-mysql-0-0-5 | 452.04|
+| DBP-mysql-nofetch | 251.21 |
 | DBO-mysql-0 | 386.42|
 | DBO-mysql-1 | 644.52|
 | DBP-pgsql-0-0-5 | 273.13|
+| DBP-pgsql-nofetch | 269.11|
 | DBO-pgsql-0 | 180.41|
 | DBO-pgsql-1 | 468.33|
 {:.mbtablestyle3}
@@ -395,20 +400,20 @@ The job ordering is measured in the following way:
 - A new table "protocol" is created which stores (id, timestamp, job_id).
 - When a worker fetches the job it stores a new protocol entry for the job to the database.
 - After all 10 000 jobs are processed the protocol table is loaded, ordered by primary key.
-- The sequence of Job IDs is analyzed: for the each position a diff sequence is computed
+- The sequence of Job IDs is analyzed: for each protocol record a diff sequence is computed
 
 \\(\text{Diff}_i = \lvert i - \text{job_idx}_i \rvert \\)
 If there is no reordering the Diff sequence would be \\(0,0,0,0,...,0\\)
 
-All charts below are C4.large benchmarks with MySQL:
+All plots below are C4.large benchmarks with MySQL. The plots are histograms of Diff. 
 
 [![Beanstalkd job ordering](/static/queue02/counts_run_1513507259_mysql_conn2_dm1_dtsx0_dretry1_batch10000_cl0_window0_verify1.json.png)](/static/queue02/counts_run_1513507259_mysql_conn2_dm1_dtsx0_dretry1_batch10000_cl0_window0_verify1.json.png)
 Beanstalkd preserves the job ordering quite well.
 
 
 [![Pessimistic job ordering](/static/queue02/counts_run_1513587645_mysql_conn0_dm0_dtsx1_dretry1_batch10000_cl0_window0_verify1.json.png)](/static/queue02/counts_run_1513587645_mysql_conn0_dm0_dtsx1_dretry1_batch10000_cl0_window0_verify1.json.png)
-Pessimistic with 1 delete retry (original implementation)
-Here is apparent some jobs runs multiple times
+Pessimistic with 1 delete retry (original implementation).
+Here is apparent that some jobs runs multiple times - high reordering. The job expiration time was set to 4 seconds.
 
 
 [![Pessimistic job ordering](/static/queue02/counts_run_1513585597_mysql_conn0_dm0_dtsx0_dretry5_batch10000_cl0_window0_verify1.json.png)](/static/queue02/counts_run_1513585597_mysql_conn0_dm0_dtsx0_dretry5_batch10000_cl0_window0_verify1.json.png)
@@ -432,7 +437,23 @@ The graph below shows number of job executions vs. count (1 execution is left ov
 
 [![Pessimistic duplicities](/static/queue02/dupl_run_1513587645_mysql_conn0_dm0_dtsx1_dretry1_batch10000_cl0_window0_verify1.json.png)](/static/queue02/dupl_run_1513587645_mysql_conn0_dm0_dtsx1_dretry1_batch10000_cl0_window0_verify1.json.png)
 
- 
+## Fetch before delete
+
+I also analyzed the influence of the fetch before delete on the system as mentioned above.
+
+- The deadlock occurred anyway.
+- There were still some jobs run multiple times.
+- Removing the fetch before delete does not change the processing logic or number of times the job is being processed.
+- Removing the fetch increases the throughput of the job queue.
+
+## Conclusion
+
+- Pessimistic approach as implemented now can execute some jobs multiple times due to deadlock and delete fail.
+- Pessimistic approach is usable with a little tweak on number of attempts for delete query.
+- Pessimistic approach is usable only with databases supporting immediate deadlock detection.
+- If database does not support the deadlock detection either a) use different queue backend b) remove queue index c) use only one worker, d) use optimistic locking
+- If the slight job reordering is not a problem use optimistic locking as it gives better performance and requires no DB level locks.
+
 
 <!-- refs -->
 [previous article]: https://ph4r05.deadcode.me/blog/2017/10/04/laravel-queueing-benchmark.html
