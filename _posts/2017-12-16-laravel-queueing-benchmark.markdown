@@ -62,10 +62,10 @@ jobs per second in 10 runs for each configuration.
 
 | Method | Jobs per second |
 |:-------|:----------------|
-| Beanstalkd | 1109.82779118
-| Redis | 872.469462269
-| DB-mysql | 190.46838932
-| DB-pgsql | 206.385861109
+| Beanstalkd | 1109.83
+| Redis | 872.47
+| DB-mysql | 190.47
+| DB-pgsql | 206.39
 {:.mbtablestyle3}
 
 
@@ -75,10 +75,10 @@ Amazon C4 offers 2 thread cores and the processor is a bit faster than forpsi:
 
 | Method | Jobs per second |
 |:-------|:----------------|
-| Beanstalkd | 2600.95996443
-| Redis | 1905.52931478
-| DB-mysql | 452.03984117
-| DB-pgsql | 273.132717217
+| Beanstalkd | 2600.96
+| Redis | 1905.53
+| DB-mysql | 452.04
+| DB-pgsql | 273.13
 {:.mbtablestyle3}
 
 ## Burst credit
