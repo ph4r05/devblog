@@ -28,6 +28,7 @@ avoid them.
 ### Job claim mechanism
 
 The jobs are stored in the `jobs` table in the database.
+
 Available workers are querying the available jobs for processing by the following query:
 
 ```sql
@@ -51,6 +52,12 @@ If the job is present in the `jobs` table after some configured time (e.g., 90 s
 the job is considered *expired* and is again eligible to run (if attempt counter is not too high). 
 This is quite a robust mechanism - if some error interrupts the job execution (e.g., a runtime exception, server reboot)
 the job is not deleted from the table and is re-run after the 90 seconds.
+
+[![Jobs queue](/static/queue02/jobs.svg)](/static/queue02/jobs.svg)
+
+Job 1 is expired - it will be picked by the select query. Jobs 2 and 3 are reserved - they might being 
+processed by another workers. Select query ignores those. Jobs 4-8 are available to run. Job 9 will be 
+available to run in 100 seconds. 
 
 The `reserved_at` criteria guarantees that the job will be run *at least once*
 before removing from the database (unless the attempt counter is too high).
@@ -269,6 +276,8 @@ due to transaction properties of single queries. The key here is `affecter rows`
 SQL server. If the return value is 1 then the worker succeeded with claiming the job and can proceed with working
 on it. Other workers will get 0 and try to load next available job again - got preempted by another worker.
 
+[![Optimistic locking](/static/queue02/jobs_optimistic_h.svg)](/static/queue02/jobs_optimistic_h.svg)
+
 Benefits of the optimistic locking:
 
 - No DB lock so no deadlocks.
@@ -278,11 +287,49 @@ Benefits of the optimistic locking:
 Disadvantage is visible if jobs are rather short and workers compete on the next available jobs.
 The preemption is quite often which increases overhead of the queueing system.
 
+### Optimization
 
+In the current scenario the competition over the next available job is quite high if the job duration is
+small or if there is a high number of workers. Let's say there are N workers.
 
+Now each one of N workers tries to load one next available job and only one will succeed in claiming the job.
+N-1 workers will have to load next available job again. This creates quite an overhead.
 
+But we can load more than 1 next available job from the queue in one worker. The optimized versions loads N next available jobs
+from the queue and picks one job to process *randomly* (uniform choice). 
 
- 
+Using this strategy the collision of all workers on one job is highly improbable ((1/N)^N). 
+This significantly increases the throughput of the queueing system as only few workers will have to query for 
+available worker again.
+
+[![Optimized optimistic locking](/static/queue02/optimized_optimistic.svg)](/static/queue02/optimized_optimistic.svg)
+
+### Optimization price - ordering
+
+Using the original pessimistic locking preserves the job ordering (FIFO). All workers are competing for the first 
+available job.
+
+However with multiple workers the concurrency, OS scheduling and other factor causes the job ordering 
+is not guaranteed anymore. N workers pick jobs in order but worker thread scheduling causes job with ID 2 
+can be processed sooner than job with ID 1. This is quite natural and expected property of the queueing system
+with multiple workers. 
+
+Optimistic locking optimization adds randomness to the job selection process thus the reordering 
+can be higher than window of N workers. We will see the reordering side effects are not that significant.
+
+With a use of a little math its possible to estimate a round the job will get processed.
+Let's say if a job is processed in round 1 it means it was processed in time - in the round the job became available. 
+
+Let \\(X\\) be the random variable of the round in which job is being processed. Then \\(E[X]\\) (expected value of X) 
+is the average case of the round processing the job. 
+
+\\( E[X] = x_1p_1 + x_2p_2 + \cdots \\) where \\( x_i \\) is the round number and \\(p_i\\) is the probability 
+of a job being processed in the round \\( x_i \\).
+
+\\( E[X] = \sum_{i=1}^{\infty} i \cdot \left( \frac{N-1}{N} \right)^{N^{i-1}} \cdot \left(1 - \left(\frac{N-1}{N}\right)^N \right) \\)
+where \\( \left(\frac{N-1}{N}\right)^N \\) is the probability a job won't be selected in the given round.
+
+\\( E[X] \approx 1.6 \\) for N ≥ 2. Thus on average the job is processed in 1.6 round. 
 
 
 <!-- refs -->
