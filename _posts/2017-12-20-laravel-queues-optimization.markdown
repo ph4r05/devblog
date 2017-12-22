@@ -278,6 +278,9 @@ on it. Other workers will get 0 and try to load next available job again - got p
 
 [![Optimistic locking](/static/queue02/jobs_optimistic_h.svg)](/static/queue02/jobs_optimistic_h.svg)
 
+In the example above only the worker 2 succeeded in claiming the job 1, other workers failed and will 
+load a next available job in the next round.
+
 Benefits of the optimistic locking:
 
 - No DB lock so no deadlocks.
@@ -298,9 +301,9 @@ N-1 workers will have to load next available job again. This creates quite an ov
 But we can load more than 1 next available job from the queue in one worker. The optimized versions loads N next available jobs
 from the queue and picks one job to process *randomly* (uniform choice). 
 
-Using this strategy the collision of all workers on one job is highly improbable ((1/N)^N). 
+Using this strategy the collision of all workers on one job is highly improbable \\(N^{-N}\\). 
 This significantly increases the throughput of the queueing system as only few workers will have to query for 
-available worker again.
+available worker again due to collision on jobs.
 
 [![Optimized optimistic locking](/static/queue02/optimized_optimistic.svg)](/static/queue02/optimized_optimistic.svg)
 
