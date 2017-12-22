@@ -381,14 +381,58 @@ C4.large:
 | DBO-pgsql-1 | 468.33|
 {:.mbtablestyle3}
 
-On C4.large the difference between MySQL and PostgreSQL is apparent. C4 has 2 vCPU and more RAM which may case
+On C4.large the difference between MySQL and PostgreSQL is apparent. C4 has 2 vCPU and more RAM which may cause
 this difference.
 
 Its apparent the optimized optimistic locking is faster than another techniques.
 
 ## Job ordering analysis
 
-...
+Let's see how the job ordering behaves for multiple different techniques. 
+
+The job ordering is measured in the following way:
+
+- A new table "protocol" is created which stores (id, timestamp, job_id).
+- When a worker fetches the job it stores a new protocol entry for the job to the database.
+- After all 10 000 jobs are processed the protocol table is loaded, ordered by primary key.
+- The sequence of Job IDs is analyzed: for the each position a diff sequence is computed
+
+\\(\text{Diff}_i = \lvert i - \text{job_idx}_i \rvert \\)
+If there is no reordering the Diff sequence would be \\(0,0,0,0,...,0\\)
+
+All charts below are C4.large benchmarks with MySQL:
+
+[![Beanstalkd job ordering](/static/queue02/counts_run_1513507259_mysql_conn2_dm1_dtsx0_dretry1_batch10000_cl0_window0_verify1.json.png)](/static/queue02/counts_run_1513507259_mysql_conn2_dm1_dtsx0_dretry1_batch10000_cl0_window0_verify1.json.png)
+Beanstalkd preserves the job ordering quite well.
+
+
+[![Pessimistic job ordering](/static/queue02/counts_run_1513587645_mysql_conn0_dm0_dtsx1_dretry1_batch10000_cl0_window0_verify1.json.png)](/static/queue02/counts_run_1513587645_mysql_conn0_dm0_dtsx1_dretry1_batch10000_cl0_window0_verify1.json.png)
+Pessimistic with 1 delete retry (original implementation)
+Here is apparent some jobs runs multiple times
+
+
+[![Pessimistic job ordering](/static/queue02/counts_run_1513585597_mysql_conn0_dm0_dtsx0_dretry5_batch10000_cl0_window0_verify1.json.png)](/static/queue02/counts_run_1513585597_mysql_conn0_dm0_dtsx0_dretry5_batch10000_cl0_window0_verify1.json.png)
+Pessimistic with 5 delete retries
+
+
+[![Optimistic job ordering](/static/queue02/counts_run_1513508173_mysql_conn1_dm1_dtsx0_dretry1_batch10000_cl0_window0_verify1.json.png)](/static/queue02/counts_run_1513508173_mysql_conn1_dm1_dtsx0_dretry1_batch10000_cl0_window0_verify1.json.png)
+Optimistic with window size 1 
+
+
+[![Optimized Optimistic job ordering](/static/queue02/counts_run_1513508909_mysql_conn1_dm1_dtsx0_dretry1_batch10000_cl0_window1_verify1.json.png)](/static/queue02/counts_run_1513508909_mysql_conn1_dm1_dtsx0_dretry1_batch10000_cl0_window1_verify1.json.png)
+Optimistic with window size N
+The job reordering is slightly higher but in all 10 test runs bounded by 70. If you can tolerate such small
+job reordering optimized optimistic queueing mechanism seems like a good choice.
+
+## Job duplicates
+
+All tested job queueing methods runs the job exactly once but one method - pessimistic with 1 retry count, the original implementation.
+
+The graph below shows number of job executions vs. count (1 execution is left over as it is normal condition). 
+
+[![Pessimistic duplicities](/static/queue02/dupl_run_1513587645_mysql_conn0_dm0_dtsx1_dretry1_batch10000_cl0_window0_verify1.json.png)](/static/queue02/dupl_run_1513587645_mysql_conn0_dm0_dtsx1_dretry1_batch10000_cl0_window0_verify1.json.png)
+
+ 
 
 <!-- refs -->
 [previous article]: https://ph4r05.deadcode.me/blog/2017/10/04/laravel-queueing-benchmark.html
