@@ -334,6 +334,61 @@ where \\( \left(\frac{N-1}{N}\right)^N \\) is the probability a job won't be sel
 
 \\( E[X] \approx 1.6 \\) for N ≥ 2. Thus on average the job is processed in 1.6 round. 
 
+## Results
+
+The benchmarking was performed with the same methodology as in the [previous article].
+Databases used supported immediate deadlock detection and rollback. 
+
+[![Queueing benchmark](/static/queue02/benchmark_optim.svg)](/static/queue02/benchmark_optim.svg)
+
+Where:
+
+- DBP-mysql-0-0-5 is a pessimistic strategy using MySQL database with 5 delete retry counts. 
+This is the fastest pessimistic locking technique from all proposed above (ignoring the DB backend). 
+
+- DBO-mysql-0 is an optimistic strategy using MySQL and job select window of size 1 (original optimistic 
+without optimization)
+
+- DBO-mysql-1 is an optimistic strategy using MySQL and job select window of size N (10 workers in this benchmark).
+
+Average jobs per seconds: 
+
+Forpsi:
+
+| Method | Jobs per second |
+|:-------|:----------------|
+| DBP-mysql-0-0-5 | 190.47|
+| DBO-mysql-0 | 90.33|
+| DBO-mysql-1 | 210.06|
+| DBP-pgsql-0-0-5 | 206.39|
+| DBO-pgsql-0 | 54.1|
+| DBO-pgsql-1 | 201.06|
+{:.mbtablestyle3}
+
+We see the original optimistic locking overhead is significant as the strategy is 50% slower than pessimistic one.
+Using the optimized version the performance is similar to the pessimistic one. MySQL and PostgreSQL perform very
+similar in this configuration.
+
+C4.large:
+
+| Method | Jobs per second |
+|:-------|:----------------|
+| DBP-mysql-0-0-5 | 452.04|
+| DBO-mysql-0 | 386.42|
+| DBO-mysql-1 | 644.52|
+| DBP-pgsql-0-0-5 | 273.13|
+| DBO-pgsql-0 | 180.41|
+| DBO-pgsql-1 | 468.33|
+{:.mbtablestyle3}
+
+On C4.large the difference between MySQL and PostgreSQL is apparent. C4 has 2 vCPU and more RAM which may case
+this difference.
+
+Its apparent the optimized optimistic locking is faster than another techniques.
+
+## Job ordering analysis
+
+...
 
 <!-- refs -->
 [previous article]: https://ph4r05.deadcode.me/blog/2017/10/04/laravel-queueing-benchmark.html
