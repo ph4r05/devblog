@@ -1,0 +1,5 @@
+---
+title: siteData
+---
+
+{{ site.data.app | jsonify }}
