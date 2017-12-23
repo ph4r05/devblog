@@ -7,8 +7,8 @@ excerpt_separator: <!-- more -->
 
 ---
 
-Practical benchmark of classic Laravel queueing mechanisms: 
-redis, beanstalkd, database (mysql, postgre) 
+The practical benchmark of classic Laravel queueing mechanisms: 
+redis, beanstalkd, database (MySQL, postgre) 
 
 <!-- more -->
 
@@ -17,7 +17,7 @@ redis, beanstalkd, database (mysql, postgre)
 [Laravel] provides several different mechanism for [job queueing]. 
 I will cover: Redis, Beanstalkd, Database (MySQL, PostgreSQL)
 
-For the benchmarking I created a new Laravel 5.5 [project]. 
+For the benchmarking, I created a new Laravel 5.5 [project]. 
 The benchmarks were performed on 2 VPS:
 
 #### Amazon EC2 [c4.large]
@@ -40,18 +40,18 @@ The packages are in the default configuration.
 
 - There are always 10 workers (processing the jobs) started before the test.
 - Jobs being processed are empty - doing nothing. This way I measure the job 
-scheduling system overhead as the workers are competing over the jobs.
+scheduling system overhead as the workers are competing for the jobs.
 - 10 000 Jobs are pre-generated on the job queue. During the pre-generation the 
 Laravel is in the *maintenance* mode - not processing the jobs.
 - After the jobs are generated Laravel is switched to normal mode - jobs processing will start.
-- Sample the size of the job queue each 0.5 seconds. Measure the time needed to process 10 000 jobs.
+- Sample the size of the job queue every 0.5 seconds. Measure the time needed to process 10 000 jobs.
 - The whole test is run 10 times.  
 
 The overall test produces average jobs per second.  
 
 Note the Database queue driver has been slightly modified to overcome 
 the current limitation of running one job multiple times. The original
-implementation fails to delete some of the finished job from the database under high load.
+implementation fails to delete some of the finished jobs from the database under high load.
 More on this problem in the next blog post.
 
 ## Results
@@ -90,13 +90,13 @@ Amazon C4 offers 2 thread cores and the processor is a bit faster than forpsi:
 
 ## Burst credit
 
-When testing on Amazon EC2 its important to realize the EBS storage drives
+When testing on Amazon EC2 it's important to realize the EBS storage drives
 are subject to IO throttling. 
 
-Each drive has so called [burst credit]. Intensive IO operations decreases
-the credit over the time. Conversely during low IO usage the credit restores slowly.
+Each drive has so-called [burst credit]. Intensive IO operations decrease
+the credit over the time. Conversely, during low IO usage, the credit restores slowly.
 
-When credit reaches 0 the IO throughtput decreases significantly (10% ish). 
+When credit reaches 0 the IO throughput decreases significantly (10% ish). 
 I performed the benchmarks only with non-null burst credits to measure the best
 possible performance.
 
