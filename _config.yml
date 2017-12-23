@@ -19,3 +19,19 @@ github_username:  ph4r05
 
 # Build settings
 markdown: kramdown
+
+exclude:
+  - components
+  - Gemfile
+  - Gemfile.lock
+  - ".gitignore"
+  - node_modules
+  - js/source.js
+  - webpack.config.js
+  - package.json
+  - .jshintrc
+  - .sass-cache
+  - browser-sync.js
+  - npm-debug.log
+  - README.MD
+
