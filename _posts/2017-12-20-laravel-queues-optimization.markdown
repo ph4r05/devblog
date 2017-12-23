@@ -15,13 +15,13 @@ Deadlocks, pessimistic vs. Optimistic locking.
 ## Intro
 
 In the [previous article] I performed a simple benchmark of the basic 
-[Laravel] queueing mechanisms. For the benchmarking I created a new Laravel 5.5 [project].
+[Laravel] queueing mechanisms. For the benchmarking, I created a new Laravel 5.5 [project].
 
-During the development of another Laravel based project I came across a 
+During the development of another Laravel based project, I came across a 
 deadlock problem of the Database worker. The issue is described
 in the Laravel issue [#7046].
 
-In the following section I will describe the pitfalls of the database 
+In the following section, I will describe the pitfalls of the database 
 queueing in the Laravel, deadlocks and the solution to handle and 
 avoid them.
 
@@ -46,7 +46,7 @@ selected record meaning "we are going to update the record in the transaction".
 The another `update` query is claiming the particular job by the worker.
 The worker claims the job for itself by setting `reserved_at` field to the current time.
 If the `reserved_at < NOW() + 90` then the job is not eligible for running and
-won't be selected by other jobs by the `select` query.
+won't be selected by other workers by the `select` query.
 
 If the job is present in the `jobs` table after some configured time (e.g., 90 seconds)
 the job is considered *expired* and is again eligible to run (if attempt counter is not too high). 
@@ -55,7 +55,7 @@ the job is not deleted from the table and is re-run after the 90 seconds.
 
 [![Jobs queue](/static/queue02/jobs.svg)](/static/queue02/jobs.svg)
 
-Job 1 is expired - it will be picked by the select query. Jobs 2 and 3 are reserved - they might being 
+Job 1 is expired - it will be picked by the select query. Jobs 2 and 3 are reserved - they are being 
 processed by another workers. Select query ignores those. Jobs 4-8 are available to run. Job 9 will be 
 available to run in 100 seconds. 
 
@@ -82,7 +82,7 @@ $this->database->transaction(function () use ($queue, $id) {
 });
 ```
 
-The reason why there the first select is performed is not quite clear.
+The reason why the first select is performed is not quite clear.
 My hypothesis is it was some workaround for deadlocks or some refactoring artifact.
 I will show the select is not needed, job can be removed immediately without
 changing the properties of the system.
@@ -123,7 +123,7 @@ ID  Waiting  Mode  DB        Table  Index                         Special       
  5        1  X     keychest  jobs   jobs_queue_at_index           rec but not gap           0
 ```
 
-The worker `4` is selecting the nex available job. The select tries to lock
+The worker `4` is selecting the next available job. The select tries to lock
 the primary key index because of the `FOR UPDATE`.
 
 The worker `5` processed the job and it is trying to issue delete query to remove the job
@@ -151,13 +151,13 @@ MySQL usually picks the delete query for the rollback.
 Note this is the worse option of the two. If select fails it does no harm,
 the exception is thrown but worker swallows it and tries to load a new job again - issue the select again.  
 
-On the other hand the delete rollback causes a little troubles.
+On the other hand, the delete rollback causes a little trouble.
 As the job remains in the `jobs` table due to deletion fail, it became expired
 and processed again by another worker. If the next worker again fails with the deletion 
 the process repeats. 
 
-Due to this problem it can happen the job is processed more than once before deleting from the queue.
-This may be serious problem for some jobs. It is good to keep in mind this situation may ocur
+Due to this problem, it can happen the job is processed more than once before deleting from the queue.
+This may be a serious problem for some jobs. It is good to keep in mind this situation may occur
 when implementing the jobs logic. 
 
 ### Laravel ≤ 5.4 deadlock
@@ -205,10 +205,10 @@ $this->database->transaction(function () use ($queue, $id) {
 The number of attempts for performing the delete operation is set to 5. 
 It is kind of magic constant approach but works pretty well in practice - shown below.
 
-The probability the job won't be removed after 5 attempts is very low thus
-with this workaround job is run exactly once with very high probability.
+The probability of the job won't be removed after 5 attempts is very low thus
+with this workaround, job is run exactly once with very high probability.
 
-However the deadlock problem is still present which is a problem for older database servers.
+However, the deadlock problem is still present which is a problem for older database servers.
 
 ## Deadlock handling - delete mark 
 
@@ -231,7 +231,7 @@ The deadlock still happens, just the occurrence is changed.
 ## Deadlock handling - removing the queue index
 
 In order to avoid deadlock an elimination of a required condition is needed. 
-In this case the obvious move is to remove `jobs_queue_at_index` index.
+In this case, the obvious move is to remove `jobs_queue_at_index` index.
 
 This method works and no deadlock will occur anymore but the performance is
 degraded significantly (see results below).
@@ -240,18 +240,17 @@ degraded significantly (see results below).
 ## Summary
 
 The proposed methods can improve the system properties by assuring the job is run exactly 
-once. If the database supports deadlock detection the system recovers quickly. However 
-the older database versions will stall the queues significantly. 
+once. If the database supports deadlock detection the system recovers quickly. However, the older database versions will stall the queues significantly. 
 
 ## Optimistic locking
 
-The previous approach uses so called *pessimistic locking*. Pessimistic in a sense the caller
-assumes there will be a conflict on rows so it locks the relevant records for further update by exclusive lock. 
-Other concurrent transactions cannot read or modify the record due to exclusive lock.
+The previous approach uses so-called *pessimistic locking*. Pessimistic in a sense the caller
+assumes there will be a conflict on rows so it locks the relevant records for further update by the exclusive lock. 
+Other concurrent transactions cannot read or modify the record due to the exclusive lock.
 
 Optimistic locking does not use explicit locking mechanism by the database. 
 The integrity is maintained via conditioning update by load time information. 
-Lets demonstrate the it on the workers:
+Let's demonstrate it on the workers:
 
 ```sql
 ALTER TABLE jobs ADD COLUMN version int(10) unsigned NOT NULL DEFAULT 0;
@@ -265,15 +264,15 @@ UPDATE `jobs` SET `reserved_at` = NOW(), `attempts` = `attempts` + 1, version = 
 ```
 
 The difference is there is no transaction required to wrap the logic of select + claim.
-For optimistic locking we added a new column `version`. The subsequent update is conditioned on the 
+For optimistic locking, we added a new column `version`. The subsequent update is conditioned on the 
 select-time value of the version column. If the update succeeds it increments the version column.  
 
 If the record was modified between select and update by another worker the version value will 
 change and the update will fail.
 
-Multiple workers tries to load next available job but the only one will succeed to update the version column 
-due to transaction properties of single queries. The key here is `affecter rows` variable returned by the
-SQL server. If the return value is 1 then the worker succeeded with claiming the job and can proceed with working
+Multiple workers try to load next available job but the only one will succeed to update the version column 
+due to transaction properties of single queries. The key here is `affected rows` variable returned by the
+SQL server. If the return value is 1 then the worker succeeded in claiming the job and can proceed with working
 on it. Other workers will get 0 and try to load next available job again - got preempted by another worker.
 
 [![Optimistic locking](/static/queue02/jobs_optimistic_h.svg)](/static/queue02/jobs_optimistic_h.svg)
@@ -285,25 +284,25 @@ Benefits of the optimistic locking:
 
 - No DB lock so no deadlocks.
 - No explicit transactions required. Single auto-commit transactions are enough.
-- No need to maintain connection over the whole transaction.
+- No need to maintain the connection over the whole transaction.
 
-Disadvantage is visible if jobs are rather short and workers compete on the next available jobs.
-The preemption is quite often which increases overhead of the queueing system.
+The disadvantage is visible if jobs are rather short and workers compete for the next available jobs.
+The preemption is quite often which increases the overhead of the queueing system.
 
 ### Optimization
 
-In the current scenario the competition over the next available job is quite high if the job duration is
+In the current scenario, the competition over the next available job is quite high if the job duration is
 small or if there is a high number of workers. Let's say there are N workers.
 
 Now each one of N workers tries to load one next available job and only one will succeed in claiming the job.
 N-1 workers will have to load next available job again. This creates quite an overhead.
 
-But we can load more than 1 next available job from the queue in one worker. The optimized versions loads N next available jobs
+But we can load more than 1 next available job from the queue in one worker. The optimized version loads N next available jobs
 from the queue and picks one job to process *randomly* (uniform choice). 
 
 Using this strategy the collision of all workers on one job is highly improbable \\(N^{-N}\\). 
-This significantly increases the throughput of the queueing system as only few workers will have to query for 
-available worker again due to collision on jobs.
+This significantly increases the throughput of the queueing system as only a few workers will have to query for 
+available worker again due to a collision on jobs.
 
 [![Optimized optimistic locking](/static/queue02/optimized_optimistic.svg)](/static/queue02/optimized_optimistic.svg)
 
@@ -312,13 +311,13 @@ available worker again due to collision on jobs.
 Using the original pessimistic locking preserves the job ordering (FIFO). All workers are competing for the first 
 available job.
 
-However with multiple workers the concurrency, OS scheduling and other factor causes the job ordering 
+However, with multiple workers the concurrency, OS scheduling and other factor cause the job ordering 
 is not guaranteed anymore. N workers pick jobs in order but worker thread scheduling causes job with ID 2 
-can be processed sooner than job with ID 1. This is quite natural and expected property of the queueing system
+can be processed sooner than the job with ID 1. This is quite natural and expected property of the queueing system
 with multiple workers. 
 
 Optimistic locking optimization adds randomness to the job selection process thus the reordering 
-can be higher than window of N workers. We will see the reordering side effects are not that significant.
+can be higher than a window of N workers. We will see the reordering side effects are not that significant.
 
 With a use of a little math its possible to estimate a round the job will get processed.
 Let's say if a job is processed in round 1 it means it was processed in time - in the round the job became available. 
@@ -332,7 +331,7 @@ of a job being processed in the round \\( x_i \\).
 \\( E[X] = \sum_{i=1}^{\infty} i \cdot \left( \frac{N-1}{N} \right)^{N^{i-1}} \cdot \left(1 - \left(\frac{N-1}{N}\right)^N \right) \\)
 where \\( \left(\frac{N-1}{N}\right)^N \\) is the probability a job won't be selected in the given round.
 
-\\( E[X] \approx 1.6 \\) for N ≥ 2. Thus on average the job is processed in 1.6 rounds. 
+\\( E[X] \approx 1.6 \\) for N ≥ 2. Thus on average, the job is processed in 1.6 rounds. 
 
 ## Results
 
@@ -367,9 +366,9 @@ Forpsi:
 | DBO-pgsql-1 | 201.06|
 {:.mbtablestyle3}
 
-We see the original optimistic locking overhead is significant as the strategy is 50% slower than pessimistic one.
+We see the original optimistic locking overhead is significant as the strategy is 50% slower than the pessimistic one.
 Using the optimized version the performance is similar to the pessimistic one. MySQL and PostgreSQL perform very
-similar in this configuration.
+similar to this configuration.
 
 C4.large:
 
@@ -388,7 +387,7 @@ C4.large:
 On C4.large the difference between MySQL and PostgreSQL is apparent. C4 has 2 vCPU and more RAM which may cause
 this difference.
 
-Its apparent the optimized optimistic locking is faster than another techniques.
+It's apparent the optimized optimistic locking is faster than another technique.
 
 ## Job ordering analysis
 
@@ -412,7 +411,7 @@ Beanstalkd preserves the job ordering quite well.
 
 [![Pessimistic job ordering](/static/queue02/counts_run_1513587645_mysql_conn0_dm0_dtsx1_dretry1_batch10000_cl0_window0_verify1.json.png)](/static/queue02/counts_run_1513587645_mysql_conn0_dm0_dtsx1_dretry1_batch10000_cl0_window0_verify1.json.png)
 Pessimistic with 1 delete retry (original implementation).
-Here is apparent that some jobs runs multiple times - high reordering. The job expiration time was set to 4 seconds.
+Here is apparent that some jobs run multiple times - high reordering. The job expiration time was set to 4 seconds.
 
 
 [![Pessimistic job ordering](/static/queue02/counts_run_1513585597_mysql_conn0_dm0_dtsx0_dretry5_batch10000_cl0_window0_verify1.json.png)](/static/queue02/counts_run_1513585597_mysql_conn0_dm0_dtsx0_dretry5_batch10000_cl0_window0_verify1.json.png)
@@ -432,13 +431,13 @@ job reordering optimized optimistic queueing mechanism seems like a good choice.
 
 All tested job queueing methods runs the job exactly once but one method - pessimistic with 1 retry count, the original implementation.
 
-The graph below shows number of job executions vs. count (1 execution is left over as it is normal condition). 
+The graph below shows the number of job executions vs. count (1 execution is left over as it is a normal condition). 
 
 [![Pessimistic duplicities](/static/queue02/dupl_run_1513587645_mysql_conn0_dm0_dtsx1_dretry1_batch10000_cl0_window0_verify1.json.png)](/static/queue02/dupl_run_1513587645_mysql_conn0_dm0_dtsx1_dretry1_batch10000_cl0_window0_verify1.json.png)
 
 ## Fetch before delete
 
-I also analyzed the influence of the fetch before delete on the system as mentioned above.
+I also analyzed the influence of the fetch before deleting on the system as mentioned above.
 
 - The deadlock occurred anyway.
 - There were still some jobs run multiple times.
@@ -462,7 +461,7 @@ composer require ph4r05/laravel-queue-database-ph4
 ## Conclusion
 
 - Pessimistic approach as implemented now can execute some jobs multiple times due to deadlock and delete fail.
-- Pessimistic approach is usable with a little tweak on number of attempts for delete query.
+- Pessimistic approach is usable with a little tweak on a number of attempts for delete query.
 - Pessimistic approach is usable only with databases supporting immediate deadlock detection.
 - If database does not support the deadlock detection either a) use different queue backend b) remove queue index c) use only one worker, d) use optimistic locking
 - If the slight job reordering is not a problem use optimistic locking as it gives better performance and requires no DB level locks.
