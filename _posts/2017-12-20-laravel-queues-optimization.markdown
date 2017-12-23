@@ -358,12 +358,11 @@ Forpsi:
 | Method | Jobs per second |
 |:-------|:----------------|
 | DBP-mysql-0-0-5 | 190.47|
-| DBP-mysql-noindex | 90 |
-| DBP-mysql-nofetch | 157.43 |
+| DBP-mysql-noindex | 92.29 |
 | DBO-mysql-0 | 90.33|
 | DBO-mysql-1 | 210.06|
 | DBP-pgsql-0-0-5 | 206.39|
-| DBP-pgsql-nofetch | 183.15|
+| DBP-pgsql-noindex | 142.65|
 | DBO-pgsql-0 | 54.1|
 | DBO-pgsql-1 | 201.06|
 {:.mbtablestyle3}
@@ -377,11 +376,11 @@ C4.large:
 | Method | Jobs per second |
 |:-------|:----------------|
 | DBP-mysql-0-0-5 | 452.04|
-| DBP-mysql-nofetch | 251.21 |
+| DBP-mysql-noindex | 171.61 |
 | DBO-mysql-0 | 386.42|
 | DBO-mysql-1 | 644.52|
 | DBP-pgsql-0-0-5 | 273.13|
-| DBP-pgsql-nofetch | 269.11|
+| DBP-pgsql-noindex | 263.86|
 | DBO-pgsql-0 | 180.41|
 | DBO-pgsql-1 | 468.33|
 {:.mbtablestyle3}
@@ -445,6 +444,10 @@ I also analyzed the influence of the fetch before delete on the system as mentio
 - There were still some jobs run multiple times.
 - Removing the fetch before delete does not change the processing logic or number of times the job is being processed.
 - Removing the fetch increases the throughput of the job queue.
+
+Performance on MySQL:
+- Forpsi fetch vs. no fetch is 181.3 vs 190.5 (95%) 
+- C4.large fetch vs. no fetch is 313.4 vs. 452 (69%)
 
 ## Conclusion
 
