@@ -449,6 +449,16 @@ Performance on MySQL:
 - Forpsi fetch vs. no fetch is 181.3 vs 190.5 (95%) 
 - C4.large fetch vs. no fetch is 313.4 vs. 452 (69%)
 
+## Optimistic Database Queue package
+
+The optimistic locking package has been implemented as a Laravel package:
+
+[https://github.com/ph4r05/laravel-queue-database-ph4](https://github.com/ph4r05/laravel-queue-database-ph4)
+
+```bash
+composer require ph4r05/laravel-queue-database-ph4
+```
+
 ## Conclusion
 
 - Pessimistic approach as implemented now can execute some jobs multiple times due to deadlock and delete fail.
