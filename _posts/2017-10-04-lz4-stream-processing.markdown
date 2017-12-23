@@ -1,6 +1,6 @@
 ---
 layout: post
-title:  "LZ4 streamed processing of very large files"
+title:  "LZ4 streamed processing of a large files"
 date:   2017-10-04 22:10:39 +0200
 categories: blog
 excerpt_separator: <!-- more -->
