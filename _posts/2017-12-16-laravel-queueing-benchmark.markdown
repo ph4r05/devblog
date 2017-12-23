@@ -1,7 +1,7 @@
 ---
 layout: post
 title:  "Laravel queueing benchmark"
-date:   2017-10-04 22:10:39 +0200
+date:   2017-12-16 22:10:39 +0200
 categories: blog
 excerpt_separator: <!-- more -->
 

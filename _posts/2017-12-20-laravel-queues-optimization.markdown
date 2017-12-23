@@ -1,7 +1,7 @@
 ---
 layout: post
 title:  "Laravel queueing optimization"
-date:   2017-10-04 22:10:39 +0200
+date:   2017-12-23 12:10:39 +0200
 categories: blog
 excerpt_separator: <!-- more -->
 
