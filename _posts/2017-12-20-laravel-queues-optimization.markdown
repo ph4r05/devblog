@@ -458,6 +458,17 @@ The optimistic locking package has been implemented as a Laravel package:
 composer require ph4r05/laravel-queue-database-ph4
 ```
 
+Benefits:
+
+ - No need for explicit transactions. Single query auto-commit transactions are OK.
+ - No DB level locking, thus no deadlocks. Works also with databases without deadlock detection (older MySQL).
+ - Job executed exactly once (as opposed to pessimistic default DB locking)
+ - High throughput.
+ - Tested with MySQL, PostgreSQL, Sqlite.
+ 
+Cons:
+ - Job ordering can be slightly shifted with multiple workers (reordering 0-70 in 10 000 jobs)
+
 ## Conclusion
 
 - Pessimistic approach as implemented now can execute some jobs multiple times due to deadlock and delete fail.
