@@ -421,27 +421,27 @@ If there is no reordering the Diff sequence would be \\(0,0,0,0,...,0\\)
 
 All plots below are C4.large benchmarks with MySQL. The plots are histograms of Diff. 
 
-[![Beanstalkd job ordering](/static/queue02/counts_run_1513507259_mysql_conn2_dm1_dtsx0_dretry1_batch10000_cl0_window0_verify1.json.png)](/static/queue02/counts_run_1513507259_mysql_conn2_dm1_dtsx0_dretry1_batch10000_cl0_window0_verify1.json.png)
+[![Beanstalkd job ordering](/static/queue02/counts_run_1513507259_mysql_conn2_dm1_dtsx0_dretry1_batch10000_cl0_window0_verify1.json.svg)](/static/queue02/counts_run_1513507259_mysql_conn2_dm1_dtsx0_dretry1_batch10000_cl0_window0_verify1.json.svg)
 Beanstalkd preserves the job ordering quite well. The biggest job offset was 6, with very few cases.
 
 
-[![Pessimistic job ordering](/static/queue02/counts_run_1513587645_mysql_conn0_dm0_dtsx1_dretry1_batch10000_cl0_window0_verify1.json.png)](/static/queue02/counts_run_1513587645_mysql_conn0_dm0_dtsx1_dretry1_batch10000_cl0_window0_verify1.json.png)
+[![Pessimistic job ordering](/static/queue02/counts_run_1513587645_mysql_conn0_dm0_dtsx1_dretry1_batch10000_cl0_window0_verify1.json.svg)](/static/queue02/counts_run_1513587645_mysql_conn0_dm0_dtsx1_dretry1_batch10000_cl0_window0_verify1.json.svg)
 Pessimistic with 1 delete retry (the original database queue implementation).
 Here is apparent that some jobs run multiple times - high reordering. 
 The job expiration time was set to 4 seconds. This queueing technique executed 11 800 jobs in total instead 
 of 10 000 jobs.
 
 
-[![Pessimistic job ordering](/static/queue02/counts_run_1513585597_mysql_conn0_dm0_dtsx0_dretry5_batch10000_cl0_window0_verify1.json.png)](/static/queue02/counts_run_1513585597_mysql_conn0_dm0_dtsx0_dretry5_batch10000_cl0_window0_verify1.json.png)
+[![Pessimistic job ordering](/static/queue02/counts_run_1513585597_mysql_conn0_dm0_dtsx0_dretry5_batch10000_cl0_window0_verify1.json.svg)](/static/queue02/counts_run_1513585597_mysql_conn0_dm0_dtsx0_dretry5_batch10000_cl0_window0_verify1.json.svg)
 Pessimistic with 5 delete retries. The reordering is quite small, very similar to the beanstalkd.
 
 
-[![Optimistic job ordering](/static/queue02/counts_run_1513508173_mysql_conn1_dm1_dtsx0_dretry1_batch10000_cl0_window0_verify1.json.png)](/static/queue02/counts_run_1513508173_mysql_conn1_dm1_dtsx0_dretry1_batch10000_cl0_window0_verify1.json.png)
+[![Optimistic job ordering](/static/queue02/counts_run_1513508173_mysql_conn1_dm1_dtsx0_dretry1_batch10000_cl0_window0_verify1.json.svg)](/static/queue02/counts_run_1513508173_mysql_conn1_dm1_dtsx0_dretry1_batch10000_cl0_window0_verify1.json.svg)
 Optimistic with window size 1. The reordering frequencies are also very similar to pessimistic 
 locking with slightly more jobs being shifted.
 
 
-[![Optimized Optimistic job ordering](/static/queue02/counts_run_1513508909_mysql_conn1_dm1_dtsx0_dretry1_batch10000_cl0_window1_verify1.json.png)](/static/queue02/counts_run_1513508909_mysql_conn1_dm1_dtsx0_dretry1_batch10000_cl0_window1_verify1.json.png)
+[![Optimized Optimistic job ordering](/static/queue02/counts_run_1513508909_mysql_conn1_dm1_dtsx0_dretry1_batch10000_cl0_window1_verify1.json.svg)](/static/queue02/counts_run_1513508909_mysql_conn1_dm1_dtsx0_dretry1_batch10000_cl0_window1_verify1.json.svg)
 Optimistic with window size N.
 The job reordering is slightly higher but in all 10 test runs with 10 000 jobs it is bounded by 70. If you can tolerate such small
 job reordering the optimized optimistic queueing mechanism seems like a good choice because of its benefits.
@@ -452,7 +452,7 @@ All tested job queueing methods runs the job exactly once but one method - pessi
 
 The graph below shows the number of job executions vs. number of events (1 execution is left over as it is a normal condition). 
 
-[![Pessimistic duplicities](/static/queue02/dupl_run_1513587645_mysql_conn0_dm0_dtsx1_dretry1_batch10000_cl0_window0_verify1.json.png)](/static/queue02/dupl_run_1513587645_mysql_conn0_dm0_dtsx1_dretry1_batch10000_cl0_window0_verify1.json.png)
+[![Pessimistic duplicities](/static/queue02/dupl_run_1513587645_mysql_conn0_dm0_dtsx1_dretry1_batch10000_cl0_window0_verify1.json.svg)](/static/queue02/dupl_run_1513587645_mysql_conn0_dm0_dtsx1_dretry1_batch10000_cl0_window0_verify1.json.svg)
 
 11 800 jobs were executed in total instead of 10 000.
 
