@@ -427,7 +427,9 @@ Beanstalkd preserves the job ordering quite well. The biggest job offset was 6, 
 
 [![Pessimistic job ordering](/static/queue02/counts_run_1513587645_mysql_conn0_dm0_dtsx1_dretry1_batch10000_cl0_window0_verify1.json.png)](/static/queue02/counts_run_1513587645_mysql_conn0_dm0_dtsx1_dretry1_batch10000_cl0_window0_verify1.json.png)
 Pessimistic with 1 delete retry (the original database queue implementation).
-Here is apparent that some jobs run multiple times - high reordering. The job expiration time was set to 4 seconds.
+Here is apparent that some jobs run multiple times - high reordering. 
+The job expiration time was set to 4 seconds. This queueing technique executed 11 800 jobs in total instead 
+of 10 000 jobs.
 
 
 [![Pessimistic job ordering](/static/queue02/counts_run_1513585597_mysql_conn0_dm0_dtsx0_dretry5_batch10000_cl0_window0_verify1.json.png)](/static/queue02/counts_run_1513585597_mysql_conn0_dm0_dtsx0_dretry5_batch10000_cl0_window0_verify1.json.png)
@@ -451,6 +453,8 @@ All tested job queueing methods runs the job exactly once but one method - pessi
 The graph below shows the number of job executions vs. number of events (1 execution is left over as it is a normal condition). 
 
 [![Pessimistic duplicities](/static/queue02/dupl_run_1513587645_mysql_conn0_dm0_dtsx1_dretry1_batch10000_cl0_window0_verify1.json.png)](/static/queue02/dupl_run_1513587645_mysql_conn0_dm0_dtsx1_dretry1_batch10000_cl0_window0_verify1.json.png)
+
+11 800 jobs were executed in total instead of 10 000.
 
 ### Fetch before delete
 
