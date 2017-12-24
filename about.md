@@ -14,6 +14,9 @@ Welcome to `ph4r05` dev blog.
 
 ## Projects
 
+### [deadcode.me](https://deadcode.me)
+Our security related blog.
+
 ### [keychest.net](https://keychest.net)
 Certificate expiry, certificate monitoring for TLS, HTTPS, Let's Encrypt, with free cloud service. Automatic monitoring of subdomain servers as they are set up.
 
