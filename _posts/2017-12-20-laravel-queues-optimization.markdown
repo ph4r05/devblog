@@ -123,14 +123,14 @@ ID  Waiting  Mode  DB        Table  Index                         Special       
  5        1  X     keychest  jobs   jobs_queue_at_index           rec but not gap           0
 ```
 
-The worker `4` is selecting the next available job. The select tries to lock
+The worker 4 is selecting the next available job. The select tries to lock
 the primary key index because of the `FOR UPDATE`.
 
-The worker `5` processed the job and it is trying to issue delete query to remove the job
+The worker 5 processed the job and it is trying to issue delete query to remove the job
 from the table. The delete lock is already holding primary key lock. As the deletion 
 affects also `jobs_queue_at_index` index the query asks for that lock.
 
-There is also a third select query of another worker, not displayed in this listing (produced by `innotop`) which 
+There is also a third select query of another worker, not displayed in this listing (produced by *innotop*) which 
 holds lock on `jobs_queue_at_index`.
 
 This in global picture causes a deadlock - each transaction is waiting for a lock that is held by another transaction. 
@@ -180,17 +180,22 @@ ID    Waiting  Mode  DB        Table  Index                         Special     
 ```
 
 Here we see 2 workers deadlocking on the first query.
-Worker `8767` is trying to claim the job by issuing the `UPDATE` query.
+Worker 8767 is trying to claim the job by issuing the `UPDATE` query.
 It locked the record *for update* by the previous select and now holds `PRIMARY` key index.
 As the `jobs_queue_reserved_at_index` index is affected by the update query it has to be locked too.
 
-Worker `8768` is performing the select with the *for update* locking - asking for a primary key lock.
+Worker 8768 is performing the select with the *for update* locking - asking for a primary key lock.
 
 There is another select query of another worker, not displayed in the listing holding the `jobs_queue_reserved_at_index` index.
 
 This again causes a deadlock.
 
-## Deadlock handling - retry
+## Solutions
+
+In the sections below I propose few fixes to the mentioned problem. At first I will focus on the current queueing mechanism
+and try it improve a bit. Later is a new locking mechanism proposed.
+
+### Deadlock handling - retry
 
 There is one simple workaround to handle multiple runs of the job: 
 
@@ -210,7 +215,7 @@ with this workaround, job is run exactly once with very high probability.
 
 However, the deadlock problem is still present which is a problem for older database servers.
 
-## Deadlock handling - delete mark 
+### Deadlock handling - delete mark 
 
 Another way of fixing the multiple job run problem is adding a new column to the jobs table:
 
@@ -228,7 +233,7 @@ to a state the finished job is removed, eventually.
 
 The deadlock still happens, just the occurrence is changed. 
 
-## Deadlock handling - removing the queue index
+### Deadlock handling - removing the queue index
 
 In order to avoid deadlock an elimination of a required condition is needed. 
 In this case, the obvious move is to remove `jobs_queue_at_index` index.
@@ -237,7 +242,7 @@ This method works and no deadlock will occur anymore but the performance is
 degraded significantly (see results below).
 
 
-## Summary
+### Summary
 
 The proposed methods can improve the system properties by assuring the job is run exactly 
 once. If the database supports deadlock detection the system recovers quickly. However, the older database versions will stall the queues significantly. 
@@ -249,7 +254,7 @@ assumes there will be a conflict on rows so it locks the relevant records for fu
 Other concurrent transactions cannot read or modify the record due to the exclusive lock.
 
 Optimistic locking does not use explicit locking mechanism by the database. 
-The integrity is maintained via conditioning update by load time information. 
+The integrity is maintained via conditioning update by load-time information. 
 Let's demonstrate it on the workers:
 
 ```sql
@@ -259,21 +264,23 @@ ALTER TABLE jobs ADD COLUMN version int(10) unsigned NOT NULL DEFAULT 0;
 The select query with job claim:
 
 ```sql
-SELECT * FROM `jobs` WHERE `queue` = ? AND ((`reserved_at` IS NULL and `available_at` <= NOW()) OR (`reserved_at` <= ?)) ORDER BY `id` ASC limit 1 FOR UPDATE; 
-UPDATE `jobs` SET `reserved_at` = NOW(), `attempts` = `attempts` + 1, version = version + 1 WHERE `id` = ? AND version=?;
+SELECT * FROM `jobs` WHERE `queue` = ? AND ((`reserved_at` IS NULL and `available_at` <= NOW()) OR (`reserved_at` <= ?)) ORDER BY `id` ASC limit 1; 
+UPDATE `jobs` SET `reserved_at` = NOW(), `attempts` = `attempts` + 1, `version` = `version` + 1 WHERE `id` = ? AND version=?;
 ```
 
-The difference is there is no transaction required to wrap the logic of select + claim.
-For optimistic locking, we added a new column `version`. The subsequent update is conditioned on the 
+The difference is there is no transaction required to wrap the logic of select + claim, select query is almost the same but
+`for update` is missing.
+We also added a new column `version` for the optimistic locking. The subsequent update is conditioned on the 
 select-time value of the version column. If the update succeeds it increments the version column.  
 
 If the record was modified between select and update by another worker the version value will 
 change and the update will fail.
 
 Multiple workers try to load next available job but the only one will succeed to update the version column 
-due to transaction properties of single queries. The key here is `affected rows` variable returned by the
+due to the query atomicity. The key here is `affected rows` variable returned by the
 SQL server. If the return value is 1 then the worker succeeded in claiming the job and can proceed with working
-on it. Other workers will get 0 and try to load next available job again - got preempted by another worker.
+on it. Other workers will get 0 and try to load next available job again - got preempted by another worker, the
+version column changed since they performed their own select.
 
 [![Optimistic locking](/static/queue02/jobs_optimistic_h.svg)](/static/queue02/jobs_optimistic_h.svg)
 
@@ -319,13 +326,13 @@ with multiple workers.
 Optimistic locking optimization adds randomness to the job selection process thus the reordering 
 can be higher than a window of N workers. We will see the reordering side effects are not that significant.
 
-With a use of a little math its possible to estimate a round the job will get processed.
+With a use of a little math its possible to estimate a round the job will get processed by some worker.
 Let's say if a job is processed in round 1 it means it was processed in time - in the round the job became available. 
 
-Let \\(X\\) be the random variable of the round in which job is being processed. Then \\(E[X]\\) (expected value of X) 
+Let \\(X\\) be a [random variable] for the round in which job is being processed. Then \\(E[X]\\), an [expected value] of X, 
 is the average case of the round processing the job. 
 
-\\( E[X] = x_1p_1 + x_2p_2 + \cdots \\) where \\( x_i \\) is the round number and \\(p_i\\) is the probability 
+Then \\( E[X] = x_1p_1 + x_2p_2 + \cdots \\) where \\( x_i \\) is the round number and \\(p_i\\) is the probability 
 of a job being processed in the round \\( x_i \\).
 
 \\( E[X] = \sum_{i=1}^{\infty} i \cdot \left( \frac{N-1}{N} \right)^{N^{i-1}} \cdot \left(1 - \left(\frac{N-1}{N}\right)^N \right) \\)
@@ -387,55 +394,65 @@ C4.large:
 On C4.large the difference between MySQL and PostgreSQL is apparent. C4 has 2 vCPU and more RAM which may cause
 this difference.
 
-It's apparent the optimized optimistic locking is faster than another technique.
+The optimized optimistic locking is faster than another technique.
 
-## Job ordering analysis
+### Job ordering analysis
 
 Let's see how the job ordering behaves for multiple different techniques. 
 
 The job ordering is measured in the following way:
 
-- A new table "protocol" is created which stores (id, timestamp, job_id).
-- When a worker fetches the job it stores a new protocol entry for the job to the database.
-- After all 10 000 jobs are processed the protocol table is loaded, ordered by primary key.
-- The sequence of Job IDs is analyzed: for each protocol record a diff sequence is computed
+- A new table "protocol" is created which stores `(id, timestamp, job_id)`.
+- When a worker fetches the job it inserts a new entry to the protocol table corresponding to the job.
+- After all 10 000 jobs are processed the protocol table is loaded for analysis, ordered by id.
+- The sequence of Job IDs is analyzed: for each protocol record a diff sequence is computed.
+- From the protocol we can also check if the job was executed exactly once.
 
-\\(\text{Diff}_i = \lvert i - \text{job_idx}_i \rvert \\)
+Lets define \\(\text{Diff}_i = \lvert i - \text{job_idx}_i \rvert \\)
+
+Example:
+
+Job ID   | 1 | 2 | 4 | 7 | 3 | 6 | 5
+Sequence | 1 | 2 | 3 | 4 | 5 | 6 | 7
+Diff     | 0 | 0 | 1 | 3 | 2 | 0 | 2
+{:.mbtablestyle3}
+
 If there is no reordering the Diff sequence would be \\(0,0,0,0,...,0\\)
 
 All plots below are C4.large benchmarks with MySQL. The plots are histograms of Diff. 
 
 [![Beanstalkd job ordering](/static/queue02/counts_run_1513507259_mysql_conn2_dm1_dtsx0_dretry1_batch10000_cl0_window0_verify1.json.png)](/static/queue02/counts_run_1513507259_mysql_conn2_dm1_dtsx0_dretry1_batch10000_cl0_window0_verify1.json.png)
-Beanstalkd preserves the job ordering quite well.
+Beanstalkd preserves the job ordering quite well. The biggest job offset was 6, with very few cases.
 
 
 [![Pessimistic job ordering](/static/queue02/counts_run_1513587645_mysql_conn0_dm0_dtsx1_dretry1_batch10000_cl0_window0_verify1.json.png)](/static/queue02/counts_run_1513587645_mysql_conn0_dm0_dtsx1_dretry1_batch10000_cl0_window0_verify1.json.png)
-Pessimistic with 1 delete retry (original implementation).
+Pessimistic with 1 delete retry (the original database queue implementation).
 Here is apparent that some jobs run multiple times - high reordering. The job expiration time was set to 4 seconds.
 
 
 [![Pessimistic job ordering](/static/queue02/counts_run_1513585597_mysql_conn0_dm0_dtsx0_dretry5_batch10000_cl0_window0_verify1.json.png)](/static/queue02/counts_run_1513585597_mysql_conn0_dm0_dtsx0_dretry5_batch10000_cl0_window0_verify1.json.png)
-Pessimistic with 5 delete retries
+Pessimistic with 5 delete retries. The reordering is quite small, very similar to the beanstalkd.
 
 
 [![Optimistic job ordering](/static/queue02/counts_run_1513508173_mysql_conn1_dm1_dtsx0_dretry1_batch10000_cl0_window0_verify1.json.png)](/static/queue02/counts_run_1513508173_mysql_conn1_dm1_dtsx0_dretry1_batch10000_cl0_window0_verify1.json.png)
-Optimistic with window size 1 
+Optimistic with window size 1. The reordering frequencies are also very similar to pessimistic 
+locking with slightly more jobs being shifted.
 
 
 [![Optimized Optimistic job ordering](/static/queue02/counts_run_1513508909_mysql_conn1_dm1_dtsx0_dretry1_batch10000_cl0_window1_verify1.json.png)](/static/queue02/counts_run_1513508909_mysql_conn1_dm1_dtsx0_dretry1_batch10000_cl0_window1_verify1.json.png)
-Optimistic with window size N
-The job reordering is slightly higher but in all 10 test runs bounded by 70. If you can tolerate such small
-job reordering optimized optimistic queueing mechanism seems like a good choice.
+Optimistic with window size N.
+The job reordering is slightly higher but in all 10 test runs with 10 000 jobs it is bounded by 70. If you can tolerate such small
+job reordering the optimized optimistic queueing mechanism seems like a good choice because of its benefits.
 
-## Job duplicates
+### Job duplicates
 
 All tested job queueing methods runs the job exactly once but one method - pessimistic with 1 retry count, the original implementation.
 
-The graph below shows the number of job executions vs. count (1 execution is left over as it is a normal condition). 
+The graph below shows the number of job executions vs. number of events (1 execution is left over as it is a normal condition). 
 
 [![Pessimistic duplicities](/static/queue02/dupl_run_1513587645_mysql_conn0_dm0_dtsx1_dretry1_batch10000_cl0_window0_verify1.json.png)](/static/queue02/dupl_run_1513587645_mysql_conn0_dm0_dtsx1_dretry1_batch10000_cl0_window0_verify1.json.png)
 
-## Fetch before delete
+### Fetch before delete
 
 I also analyzed the influence of the fetch before deleting on the system as mentioned above.
 
@@ -448,9 +465,11 @@ Performance on MySQL:
 - Forpsi fetch vs. no fetch is 181.3 vs 190.5 (95%) 
 - C4.large fetch vs. no fetch is 313.4 vs. 452 (69%)
 
+I conclude the fetch part is redundant and job delete can be one single delete query.
+
 ## Optimistic Database Queue package
 
-The optimistic locking package has been implemented as a Laravel package:
+I implemented the optimistic locking package as a Laravel package:
 
 [https://github.com/ph4r05/laravel-queue-database-ph4](https://github.com/ph4r05/laravel-queue-database-ph4)
 
@@ -462,16 +481,16 @@ Benefits:
 
  - No need for explicit transactions. Single query auto-commit transactions are OK.
  - No DB level locking, thus no deadlocks. Works also with databases without deadlock detection (older MySQL).
- - Job executed exactly once (as opposed to pessimistic default DB locking)
+ - Job executed exactly once (as opposed to original pessimistic default DB locking)
  - High throughput.
- - Tested with MySQL, PostgreSQL, Sqlite.
+ - Works with MySQL, PostgreSQL and Sqlite.
  
 Cons:
  - Job ordering can be slightly shifted with multiple workers (reordering 0-70 in 10 000 jobs)
 
 ## Conclusion
 
-- Pessimistic approach as implemented now can execute some jobs multiple times due to deadlock and delete fail.
+- Pessimistic approach as implemented now in Laravel can execute some jobs multiple times due to the deadlock and job delete fail.
 - Pessimistic approach is usable with a little tweak on a number of attempts for delete query.
 - Pessimistic approach is usable only with databases supporting immediate deadlock detection.
 - If database does not support the deadlock detection either a) use different queue backend b) remove queue index c) use only one worker, d) use optimistic locking
@@ -490,7 +509,8 @@ Cons:
 [burst credit]: https://aws.amazon.com/blogs/aws/new-burst-balance-metric-for-ec2s-general-purpose-ssd-gp2-volumes/
 [Forpsi]: https://www.forpsi.com/virtual/
 
-
+[random variable]: https://en.wikipedia.org/wiki/Random_variable
+[expected value]: https://en.wikipedia.org/wiki/Expected_value
 
 
 
