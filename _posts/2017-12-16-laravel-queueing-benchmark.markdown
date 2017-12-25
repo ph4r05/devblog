@@ -59,7 +59,7 @@ More on this problem in the next blog post.
 The box plot below is a box chart visualizing the statistical distribution of the
 jobs per second in 10 runs for each configuration.   
 
-[![Benchmark results](/static/queue01/benchmark_base.png)](/static/queue01/benchmark_base.png)
+[![Benchmark results](/static/queue01/benchmark_base.svg)](/static/queue01/benchmark_base.svg)
 
 
 
