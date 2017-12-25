@@ -352,6 +352,10 @@ Where:
 - DBP-mysql-0-0-5 is a pessimistic strategy using MySQL database with 5 delete retry counts. 
 This is the fastest pessimistic locking technique from all proposed above (ignoring the DB backend). 
 
+- DBP-mysql-0-0-5 is a pessimistic strategy using MySQL database with delete mark.
+
+- DBP-mysql-0-0-5 is a pessimistic strategy using MySQL database without queue index.
+
 - DBO-mysql-0 is an optimistic strategy using MySQL and job select window of size 1 (original optimistic 
 without optimization)
 
@@ -364,10 +368,12 @@ Forpsi:
 | Method | Jobs per second |
 |:-------|:----------------|
 | DBP-mysql-0-0-5 | 190.47|
+| DBP-mysql-1-0-1 | 155.87|
 | DBP-mysql-noindex | 92.29 |
 | DBO-mysql-0 | 90.33|
 | DBO-mysql-1 | 210.06|
 | DBP-pgsql-0-0-5 | 206.39|
+| DBP-pgsql-1-0-1 | 184.03|
 | DBP-pgsql-noindex | 142.65|
 | DBO-pgsql-0 | 54.1|
 | DBO-pgsql-1 | 201.06|
@@ -382,10 +388,12 @@ C4.large:
 | Method | Jobs per second |
 |:-------|:----------------|
 | DBP-mysql-0-0-5 | 452.04|
+| DBP-mysql-1-0-1 | 347.82|
 | DBP-mysql-noindex | 171.61 |
 | DBO-mysql-0 | 386.42|
 | DBO-mysql-1 | 644.52|
 | DBP-pgsql-0-0-5 | 273.13|
+| DBP-pgsql-1-0-1 | 332.50|
 | DBP-pgsql-noindex | 263.86|
 | DBO-pgsql-0 | 180.41|
 | DBO-pgsql-1 | 468.33|
