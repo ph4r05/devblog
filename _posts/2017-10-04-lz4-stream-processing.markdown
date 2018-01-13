@@ -77,19 +77,61 @@ for idx, chunk in enumerate(lz4framed.Decompressor(iobj)):
 Disadvantage of this approach is in-memory only state. When system reboots the state is lost and you have to start from
 the beginning.
 
-To use this library you can either go for GitHub https://github.com/ph4r05/input_objects 
-or install it via pip
+To use this library you can either go for GitHub repository [https://github.com/ph4r05/input_objects](https://github.com/ph4r05/input_objects) 
+or install it via pip:
 
 ```bash
 pip install input_objects
 ```
 
-## LZ4 Modifications
+## Advanced approach - state backup
 
-- TODO: lz4 frame format
-- TODO: lz4 block format
-- TODO: lz4 decompressor state
-- TODO: lz4 optimal breakdown (dictionaries, not linked), max block size on frame.
+In order to be able to resume after OS crash we need to backup the decompressor state somehow.
+
+## LZ4 Format
+
+LZ4 format consists of frames (top level format) which contains LZ4 blocks.
+
+The frame format encapsulating the data is the following:
+
+[![Frame format](/static/lz4/frame-format.svg)](/static/lz4/frame-format.svg)
+
+- Magic bytes and end mark are fixed 4 bytes marks
+- Frame descriptor defines basic setting of the LZ4 algorithm - explained below.
+- LZ4 data blocks are present multiple times
+- Checksum is [xxHash] of the data blocks - if enabled in the frame descriptor.
+
+Usually there is only one frame encapsulating the whole data in the LZ4 file.
+The frame format is described in detail: [frame-format].
+
+### Frame descriptor
+
+Frame descriptor contains basic flags defining the processing of the LZ4 archive.
+
+[![Frame descriptor](/static/lz4/lz4-descriptor.svg)](/static/lz4/lz4-descriptor.svg)
+
+- Block independence: 1 means blocks are independent and can be decoded separately (i.e., dictionary is not shared among).
+0 means blocks are dependent on each other (up to the LZ4 window size - 64 KB).
+
+- Block checksum: 1 means each block in the frame is followed by 4B [xxHash] checksum.
+
+- Content size: 1 means uncompressed content size is stored in the frame descriptor.
+
+- Block Maximum Size: maximum size of uncompressed block, helps allocating memory. Options: 64 KB, 256 KB, 1 MB, 4 MB.
+
+### LZ4 data blocks
+
+Data blocks stored in the frame have the following structure:
+
+[![LZ4 data blocks](/static/lz4/lz4-block.svg)](/static/lz4/lz4-block.svg)
+
+Data part contains the LZ4 compressed data, specified in [block-format].
+For the scope of this blog post the internal structure of the block is not
+important as we work with them as opaque data units processed by low level LZ4 engine.
+
+### Decompressor state
+
+Here is the main state of the decompressor in C:
 
 ```c
 struct LZ4F_dctx_s {
@@ -113,34 +155,122 @@ struct LZ4F_dctx_s {
 };  /* typedef'd to LZ4F_dctx in lz4frame.h */
 ```
 
-As you can see the state has quite simple structure. There are 2 memory buffers - input, output (dict), checksum state
-and frame header info. So if this complete state is serialized it corresponds to the decompressor snapshot. So
-after the decompressor loads serialized state it can continue.
+As you can see the state has quite simple structure. There are 2 memory buffers - input, output; (dict), checksum state
+and frame header info. So if this complete state is serialized it corresponds to the decompressor snapshot at a particular
+position in the LZ4 archive. 
+So after the decompressor loads serialized state it can continue from the given position.
 
+This state marshalling extension was implemented in the LZ4 library. 
+User can periodically call state marshalling method and build a dictionary
+with snapshots of decompressor snapshots at given reading position of the stream.
 
-### State marshalling
+Example of the snapshot map in position 10, 20, 30 MB of reading:
 
-In order to recover also from program crashes you can marshal / serialize
-the decompressor context to the (byte) string which can be later
-unmarshalled / deserialized and continue from that point. Marshalled state
-can be stored e.g., to a file. More in test `test_decompressor_fp_marshalling`.
+```json
+[
+  {
+      "pos": 10485760,
+      "state": "Abz01fc0ad.........."
+  },
+  {
+      "pos": 20971520,
+      "state": "Abz01fc1ad.........."
+  },
+  {
+      "pos": 31457280,
+      "state": "Abz01fc1ad.........."
+  }
+]
+``` 
+
+Such `position -> decompressor state` state mapping file can be build on the fly when reading the file for the first time.
+
+When the server crashes or the process is corrupted the mapping file is read, the last entry is located so we get
+\\((\text{pos}_l, \text{state}_l)\\). 
+
+The file is then opened at the position \\(\text{pos}_l\\), decompressor state 
+\\(\text{state}_l\\) is resumed and the process can continue.
+
+The file reading from the given position can be done with seek or by using 
+HTTP Range headers if the file is read from a remote server.
+
+Take a look at the test [`test_decompressor_fp_marshalling`](https://github.com/ph4r05/py-lz4framed/blob/00e3984d6de98fa9562f15070a6982deeae4e215/test.py#L481)
+for detailed example of state marshalling and unmarshalling.
 
 ### Random access archive
 
 Situation: 800 GB LZ4 encrypted file. You want random access the file
  so it can be map/reduced or processed in parallel from different offsets.
+ 
+If you build the LZ4 `position -> decompressor state` mapping file 
+other processes can use this file to jump to the checkpoints in the file 
+without need to read the file from the beginning. 
 
-Marshalled decompressor state takes only the required
-amount of memory. If the state dump is performed on the block boundaries
-(i.e., when the size hint from the previous call was provided by the input stream)
- the marhsalled size would be only 184 B, in the best case scenario, 66 kB in the worse case -
- when LZ4 file is using linked mode.
+This simple way enables you to random access LZ4 archive at cost of building
+the mapping file (one extra read).
 
-Anyway, when state marshalling returns this small state the application
-can build a meta file, the mapping: position in the input stream -> decompressor context.
-With this meta file a new decompressor can jump to the particular checkpoint.
+You can try building your own mapping file for the LZ4 archive using
+my GitHub project [lz4-checkpoints].
 
+### State size
 
+Position of a decompressor in the LZ4 archive being read heavily influences the size of the serialized
+decompressor state. 
+
+When you marshall the decompressor state in the middle of a block the
+decompressor state need to contain the whole decompressing state so
+it can continue processing the block after resume. It means it can take up
+to 8 MB (if the block size is 4 MB), give or take some additional data like checksum.
+
+Naively building a mapping file is then space inefective. But this can be improved
+significantly.  
+
+If the frame format is using non-linked blocks (each block is independent) 
+then the state size of the decompressor at the position between blocks is minimal.
+
+There is no need to store the block buffers after the block reading has finished. The only
+size that needs to be stored is the content checksum [xxHash] state so decompressor 
+can compute checksum of all stored blocks when finished. 
+
+State serialized at the block boundaries takes only 184 Bytes.
+
+LZ4 decompressing library has an API giving you so-called size hints after each read. 
+Size hint is the preferred size of the input archive chunk to process in the next read 
+call so the memory allocation in the decompressor is optimal. 
+
+In other words size hint is a number of bytes to read from the input archive so 
+the block is processed in one call. When reading the archive in this way the
+file is read and processed by blocks, which is more effective.
+
+Using the size hints when reading and processing input LZ4 archive by chunks
+determines the block boundaries in the input archive. When doing the checkpointing
+we store the decompressor state exactly at those positions to minimize 
+the size of the mapping file.
+
+When processing the LZ4 archive you may also find handy to store one more
+information to the checkpoint - position in the *uncompressed* data stream
+(data produced by decompressor). This may be useful when jumping in the 
+data stream - depends on the structure of the compressed file.
+
+```json
+[
+  {
+      "pos": 10485760,
+      "upos": 24117248,
+      "state": "Abz01fc0ad.........."
+  },
+  {
+      "pos": 20971520,
+      "upos": 61865984,
+      "state": "Abz01fc1ad.........."
+  },
+  {
+      "pos": 31457280,
+      "upos": 81788928,
+      "state": "Abz01fc1ad.........."
+  }
+]
+``` 
 
 [lz4]: https://github.com/lz4/lz4
 [Censys]: https://censys.io/
@@ -150,3 +280,5 @@ With this meta file a new decompressor can jump to the particular checkpoint.
 [lz4-explained]: https://fastcompression.blogspot.cz/2011/05/lz4-explained.html
 [lz4-streaming-format]: https://fastcompression.blogspot.cz/2013/04/lz4-streaming-format-final.html
 [py-lz4framed]: https://github.com/Iotic-Labs/py-lz4framed
+[lz4-checkpoints]: https://github.com/ph4r05/lz4-checkpoints
+[xxHash]: https://github.com/Cyan4973/xxHash
