@@ -63,7 +63,7 @@ In this way LZ4 decompressor is fed with the uninterrupted data stream. When err
 blocks, retries to connect and reads more data. When more data is loaded it is returned to the decompressor. So
 even if there is 30 minutes blackout the read will resume.
 
-I've implemented this solution here: [ReconnectingLinkInputObject](https://github.com/ph4r05/codesign-analysis/blob/9d557e7eeeeb0c461d107881278160c85a04cd56/codesign/input_obj.py#L410).
+I've implemented this solution here: [ReconnectingLinkInputObject](https://github.com/ph4r05/input_objects/blob/02c4e2b031410ffe35721c33f8abe8be92a07a91/input_objects/input_obj.py#L410).
 It wraps `requests` library to open the network connection and read from it. If there is an exception or unexpected end of data it back-offs, reconnects and uses `Range` HTTP header to request unseen part of the data from the server.
 
 ```python
@@ -76,6 +76,13 @@ for idx, chunk in enumerate(lz4framed.Decompressor(iobj)):
 
 Disadvantage of this approach is in-memory only state. When system reboots the state is lost and you have to start from
 the beginning.
+
+To use this library you can either go for GitHub https://github.com/ph4r05/input_objects 
+or install it via pip
+
+```bash
+pip install input_objects
+```
 
 ## LZ4 Modifications
 
