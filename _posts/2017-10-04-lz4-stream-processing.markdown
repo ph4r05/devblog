@@ -39,7 +39,8 @@ Major disadvantage of LZ4 is lack of _random access_ to the compressed file.
 
 The problem is when you have processed already 800 GB and now suddenly network glitches or there is some firewall problem or system reboots. There is currently no way to return from the last point so you basically have to download the whole file again.
 
-I will demonstrate solutions in Python, using [py-lz4framed] library.
+I will demonstrate solutions in Python, using [py-lz4framed] library, forked version
+of the [py-lz4framed original] repository with few my additions I explain in this post.
 
 ## Stream processing
 
@@ -131,7 +132,9 @@ important as we work with them as opaque data units processed by low level LZ4 e
 
 ### Decompressor state
 
-Here is the main state of the decompressor in C:
+Here is the main state of the decompressor in C.
+It is here just for demonstration purposes to demonstrate the complexity of the
+state (and its size). You don't have to understand the fields meaning.
 
 ```c
 struct LZ4F_dctx_s {
@@ -164,7 +167,7 @@ This state marshalling extension was implemented in the LZ4 library.
 User can periodically call state marshalling method and build a dictionary
 with snapshots of decompressor snapshots at given reading position of the stream.
 
-Example of the snapshot map in position 10, 20, 30 MB of reading:
+Example of the snapshot/checkpoint map in reading positions 10, 20, 30 MB:
 
 ```json
 [
@@ -272,6 +275,14 @@ data stream - depends on the structure of the compressed file.
 ]
 ``` 
 
+### Uncompressed Data format
+
+In our case the LZ4 contains line-separated JSON records which is ideal for this kind of random access.
+
+It usually happens the block boundary is not precisely at the position in the decompressed JSON
+file where the new record stars (new line) so when jumping to the checkpoint you usually occur in the middle
+of the JSON record.
+
 [lz4]: https://github.com/lz4/lz4
 [Censys]: https://censys.io/
 [frame-format]: https://github.com/lz4/lz4/wiki/lz4_Frame_format.md
@@ -279,6 +290,7 @@ data stream - depends on the structure of the compressed file.
 [how-lz4-works]: https://ticki.github.io/blog/how-lz4-works/
 [lz4-explained]: https://fastcompression.blogspot.cz/2011/05/lz4-explained.html
 [lz4-streaming-format]: https://fastcompression.blogspot.cz/2013/04/lz4-streaming-format-final.html
-[py-lz4framed]: https://github.com/Iotic-Labs/py-lz4framed
+[py-lz4framed]: https://github.com/ph4r05/py-lz4framed
+[py-lz4framed original]: https://github.com/Iotic-Labs/py-lz4framed
 [lz4-checkpoints]: https://github.com/ph4r05/lz4-checkpoints
 [xxHash]: https://github.com/Cyan4973/xxHash
