@@ -318,6 +318,13 @@ parallel processing of large LZ4 archives saving the bandwidth and time.
 object which reconnects to the source in case of an read error.
 - [lz4-checkpoints] python library for generating LZ4 checkpoint map files. 
 
+LZ4 sources:
+
+- [frame-format] reference
+- [block-format] reference
+- [how-lz4-works] -  nice explanation of LZ4 block processing
+- [lz4-explained] - LZ4 format explained
+- [lz4-streaming-format] - LZ4 format
 
 [lz4]: https://github.com/lz4/lz4
 [Censys]: https://censys.io/
