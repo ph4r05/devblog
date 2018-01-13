@@ -26,7 +26,7 @@ LZ4 typically reduces such JSON file to 20-50% of the original size.
 ## Motivation
 
 Imagine you have to process 1TB `json.lz4` file with one JSON record per line with the limited amount of memory and disk storage. You definitely cannot download the file or load it to the memory.
-Fortunately, LZ4 is designed the streaming processing is possible so you only need to choose a library that supports it.
+Fortunately, LZ4 is designed so the streaming processing is possible so you only need to choose a library that supports it.
 
 There is a `lz4` package available on RHEL/Ubuntu to work with LZ4 archives. 
 Fetching the first record from the compressed json can be done like this:
