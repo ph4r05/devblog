@@ -312,7 +312,7 @@ As you may noticed the checkpointing is not the optimal
 as in the each checkpoint we store the same information as in previous checkpoints, like
 `LZ4F_frameInfo_t frameInfo`, `BYTE   header[16];` and so on.
 
-It will suffice to store just the position of the block boundary and the checksum state (48 B) but this space saving
+It suffices to store just the position of the block boundary and the checksum state (48 B) but this space saving
 is not significant and poses another complications. In the current state each checkpoint is fully fledged state snapshot 
 independent on each other with only small space overhead.
 
