@@ -29,6 +29,7 @@ exclude:
   - js/source.js
   - webpack.config.js
   - package.json
+  - package-lock.json
   - .jshintrc
   - .sass-cache
   - browser-sync.js

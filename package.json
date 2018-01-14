@@ -15,8 +15,8 @@
     "jekyll",
     "Vue"
   ],
-  "author": "Bryan Schuetz",
-  "license": "Fuck do I care?",
+  "author": "Ph4r05",
+  "license": "MIT",
   "dependencies": {
     "babel-cli": "^6.23.0",
     "babel-core": "^6.23.1",
@@ -25,7 +25,7 @@
     "browser-sync": "^2.18.8",
     "extract-text-webpack-plugin": "^2.1.0",
     "json-loader": "^0.5.4",
-    "marked": "^0.3.6",
+    "marked": "^0.3.12",
     "vue": "^2.2.1",
     "vue-loader": "^11.1.4",
     "vue-template-compiler": "^2.2.2",
