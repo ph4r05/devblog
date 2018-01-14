@@ -230,11 +230,11 @@ A position of a decompressor in the LZ4 archive being read heavily influences th
 decompressor state. 
 
 When you marshall the decompressor state in the middle of a block the
-decompressor state need to contain the whole decompressing state so
+decompressor state need to contain the whole decompressing state (buffers, dictionary) so
 it can continue processing the block after resume. It means it can take up
 to 8 MB (if the block size is 4 MB), give or take some additional data like a checksum.
 
-Naively building a mapping file is then space ineffective. But this can be improved
+Building a mapping file naively is obviously space ineffective. But this can be improved
 significantly.  
 
 If the frame format is using non-linked blocks (each block is independent - all Censys archives) 
@@ -244,21 +244,26 @@ There is no need to store the block buffers after the block reading has finished
 size that needs to be stored is the content checksum [xxHash] state so decompressor 
 can compute the checksum of all stored blocks when finished. 
 
-State serialized at the block boundaries takes only 184 bytes.
+State serialized at the block boundaries takes only 184 bytes in total.
 
 [![LZ4 data blocks](/static/lz4/lz4-checkpoints.svg)](/static/lz4/lz4-checkpoints.svg)
 
+The problem is the block size varies (up to 4 MB) in the frame so we don't know
+where the block boundaries are located in the LZ4 archive.
+
 The LZ4 decompressing library has an API giving you so-called _size hints_ after each read. 
-Size hint is the preferred size of the input archive chunk to process in the next read 
+Size hint is a preferred size of the input archive chunk to process in the next read 
 call so the memory allocation in the decompressor is optimal. 
 
 In other words, size hint is a number of bytes to read from the input archive so 
 the block is processed in one call. When reading the archive in this way the
-file is read and processed by blocks, which is the most effective way.
+file is read and processed by the whole blocks, which is the most effective way.
 
 The size hints determine block boundaries when reading the LZ4 archive by chunks.
 We store the decompressor state exactly at those positions to minimize 
 the size of the mapping file.
+
+### Extended checkpoints
 
 When processing the LZ4 archive you may also find handy to store one more
 information to the checkpoint - position in the *uncompressed* data stream
@@ -300,6 +305,16 @@ uncompressed data stream to resume processing correctly. The position in the str
 you with the book-keeping of already processed records or to distribute the 
 file processing among multiple workers correctly.
 
+
+### Further extensions
+
+As you may noticed the checkpointing is not the optimal 
+as in the each checkpoint we store the same information as in previous checkpoints, like
+`LZ4F_frameInfo_t frameInfo`, `BYTE   header[16];` and so on.
+
+It will suffice to store just the position of the block boundary and the checksum state (48 B) but this space saving
+is not significant and poses another complications. In the current state each checkpoint is fully fledged state snapshot 
+independent on each other with only small space overhead.
 
 ## Conclusion
 
