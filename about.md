@@ -15,7 +15,7 @@ Welcome to `ph4r05` dev blog.
 ## Projects
 
 ### [deadcode.me](https://deadcode.me)
-Our security related blog.
+Our security related blog with topics on router firmware reverse engineering, deserialization vulnerabilities and more...
 
 ### [Monero Trezor integration](https://github.com/ph4r05/monero-agent)
 Monero transaction signing implemented to the [Trezor](https://trezor.io) [hardware wallet](https://github.com/trezor/trezor-core). 
@@ -31,8 +31,13 @@ which may serve for educational purposes and further research prototyping. For t
  - [py-trezor-crypto](https://github.com/ph4r05/py-trezor-crypto) python library which provides python binding to the [trezor-crypto](https://github.com/ph4r05/trezor-crypto) cryptographic library. 
  - [py-cryptonight](https://github.com/ph4r05/py-cryptonight) Python binding for cryptonight PoW function
 
+ - Port Bulletproofs, Borromean and MLSAG algorithms from C++ to Python, optimize it for memory constrained environment. 
+
 ### [ROCA - Return of the Coppersmith attack](https://crocs.fi.muni.cz/public/papers/rsa_ccs17)
-I was part of the team working on the ROCA attack. I've performed data collecting scanning and analysis. I've also authored [roca detector](https://github.com/crocs-muni/roca) 
+I was part of the team working on the ROCA attack (known for affecting eID in Estonia and Slovakia). 
+  - Performed data collection, scanning and analysis. 
+  - Discovered that Estonia was still vulnerable in August 2017 by scanning and analysing public keys database. Our notification helped them to address problem prior the public disclosure. 
+  - Authored the [roca detector](https://github.com/crocs-muni/roca) - versatile detection tool. 
 
 ### [keychest.net](https://keychest.net)
 Certificate expiry, certificate monitoring for TLS, HTTPS, Let's Encrypt, with free cloud service. Automatic monitoring of subdomain servers as they are set up.
@@ -51,6 +56,10 @@ Secure mobile communication system.
 * ZRTP, AES-256.
 * [Android application](https://play.google.com/store/apps/details?id=net.phonex)
 * [iOS application](https://itunes.apple.com/us/app/phonex-secure-communication/id957487057?mt=8)
+* Used backend technologies: 
+  * Java/Spring based servers, PHP/Laravel license server, ActiveMQ messaging, 
+  * XMPP Server Openfire + our plugin for signalling over XMPP and push messages integration (GCM, iOS). 
+  * OpenSips server + custom [msilo](https://github.com/ph4r05/msilo) plugin for reliable message delivery over unstable mobile links. I've controbuted to OpenSips by fixing several vulnerabilities found by Coverity. 
 
 ### [EnigmaLink.io](https://enigmalink.io)
 
