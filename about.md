@@ -23,7 +23,7 @@ Monero transaction signing implemented to the [Trezor](https://trezor.io) [hardw
 I've designed transaction signature [protocol](https://github.com/ph4r05/monero-trezor-doc) suitable for use with Trezor hardware wallet which is 
 simple and easy to analyze.
 
-I've later implemented the protocol in C ([trezor-crypto extensions](https://github.com/ph4r05/trezor-crypto)) and Micropython to the [hardware wallet](https://github.com/trezor/trezor-core) codebase. I've implemented native Monero C++ binding, currently as a [PR](https://github.com/monero-project/monero/pull/4241).
+I've later implemented the protocol in C ([trezor-crypto extensions](https://github.com/ph4r05/trezor-crypto), missing ed25519 functions, fromfe_frombytes_vartime, Monero crypto functions, ...) and Micropython to the [hardware wallet](https://github.com/trezor/trezor-core) codebase. I've implemented native Monero C++ binding, currently as a [PR](https://github.com/monero-project/monero/pull/4241).
 
 As a part of this project I've implemented the python version of the both wallet and device versions in the [monero-agent](https://github.com/ph4r05/monero-agent)
 which may serve for educational purposes and further research prototyping. For this I need to implement:
