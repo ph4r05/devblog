@@ -40,6 +40,8 @@ Requirements:
 
 If the requirements are not met, ask administrator to install them or build them from source and install locally to your home folder (`./configure --prefix=$HOME/local && make && make install`, then adjust environment variables).
 
+Unless said otherwise, run all commands on the server.
+
 To build the Pyenv on Aisa/Aura servers you can use module system to add all required dependencies:
 
 ```bash
@@ -125,6 +127,21 @@ ssh -L $JPORT:localhost:$JPORT aura -t 'jupyter notebook list; bash -l'
 
 This command opens a SSH connection and creates a tunnel to the jupyter notebook socket running on the server. 
 Now you can visit `http://127.0.0.1:$JPORT` locally, in your web browser. However, to login to the notebook you need to use login link provided by the jupyter notebook after start on the server.
+
+
+### Aura SSH tunnel
+
+As Aura server is accessible from the MUNI network only, it may be useful to setup automated forwarding via Aisa server as it is accessible from all IPs.
+
+In order to setup the tunel, edit `~/.ssh/config`:
+
+```
+host aura
+hostname aura.fi.muni.cz
+user YOUR_LOGIN_NAME
+ProxyCommand ssh -q -W %h:%p aisa.fi.muni.cz
+``` 
+
 
 
 [pyenv]: https://github.com/pyenv/pyenv
