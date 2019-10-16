@@ -49,7 +49,7 @@ Unless said otherwise, run all commands on the server.
 To build the Pyenv on Aisa/Aura servers you can use module system to add all required dependencies:
 
 ```bash
-module load openssl-1.1.1  zlib-1.2.11  readline-8.0 libffi-3.2.1 bzip2 \
+module load openssl-1.1.1 zlib-1.2.11 readline-8.0 libffi-3.2.1 bzip2 \
        lzma-4.32.7 sqlite-3.29.0 mariadb-client-8.0.17 graphviz-2.26.3 
 ```
 
@@ -78,9 +78,27 @@ To compile on Aura we need to adjust environment variables so compiler can find 
 
 ```bash
 MAKEFLAGS=-j26 \
-CFLAGS="-I/packages/run.64/openssl-1.1.1/include -I/packages/run.64/libffi-3.2.1/lib/libffi-3.2.1/include -I/packages/share/readline-8.0/include -I/packages/share/zlib-1.2.11/include -I/packages/share/sqlite-3.29.0/include -I/packages/run.64/bzip2-1.0.2/include -I/packages/share/lzma-4.32.7/include" \
-LDFLAGS="-L/packages/run.64/openssl-1.1.1/lib/ -L/packages/run.64/libffi-3.2.1/lib64 -L/packages/run.64/readline-8.0/lib -L/packages/run.64/zlib-1.2.11/lib -L/packages/run.64/sqlite-3.29.0/lib -L/packages/run.64/lzma-4.32.7/lib -L/packages/run.64/bzip2-1.0.2/lib"  \
-CPPFLAGS="-I/packages/run.64/openssl-1.1.1/include -I/packages/run.64/libffi-3.2.1/lib/libffi-3.2.1/include -I/packages/share/readline-8.0/include -I/packages/share/zlib-1.2.11/include -I/packages/share/sqlite-3.29.0/include -I/packages/run.64/bzip2-1.0.2/include -I/packages/share/lzma-4.32.7/include"  \
+CFLAGS="-I/packages/run.64/openssl-1.1.1/include \ 
+        -I/packages/run.64/libffi-3.2.1/lib/libffi-3.2.1/include \
+        -I/packages/share/readline-8.0/include \
+        -I/packages/share/zlib-1.2.11/include \
+        -I/packages/share/sqlite-3.29.0/include \
+        -I/packages/run.64/bzip2-1.0.2/include \
+        -I/packages/share/lzma-4.32.7/include" \
+LDFLAGS="-L/packages/run.64/openssl-1.1.1/lib/ \
+        -L/packages/run.64/libffi-3.2.1/lib64 \
+        -L/packages/run.64/readline-8.0/lib \
+        -L/packages/run.64/zlib-1.2.11/lib \
+        -L/packages/run.64/sqlite-3.29.0/lib \
+        -L/packages/run.64/lzma-4.32.7/lib \
+        -L/packages/run.64/bzip2-1.0.2/lib"  \
+CPPFLAGS="-I/packages/run.64/openssl-1.1.1/include \
+        -I/packages/run.64/libffi-3.2.1/lib/libffi-3.2.1/include \
+        -I/packages/share/readline-8.0/include \
+        -I/packages/share/zlib-1.2.11/include \
+        -I/packages/share/sqlite-3.29.0/include \
+        -I/packages/run.64/bzip2-1.0.2/include \
+        -I/packages/share/lzma-4.32.7/include"  \
 CONFIGURE_OPTS="--with-openssl=/packages/run.64/openssl-1.1.1"  \
 LD_RUN_PATH=$LIBRARY_PATH \
 pyenv install -v 3.7.1
@@ -109,10 +127,10 @@ Create following file `jupyter.sh` on the server:
 : "${JPORT:=8876}"  # unique port per user
 
 # Dependency loading for MUNI RHEL8 machines
-module load openssl-1.1.1  zlib-1.2.11  readline-8.0 libffi-3.2.1 bzip2 lzma-4.32.7 sqlite-3.29.0 mariadb-client-8.0.17 graphviz-2.26.3 
+module load openssl-1.1.1 zlib-1.2.11 readline-8.0 libffi-3.2.1 bzip2 lzma-4.32.7 sqlite-3.29.0 mariadb-client-8.0.17 graphviz-2.26.3 
 
 # Run the notebook in the terminal
-jupyter-notebook --no-browser --port $JPORT .
+nice -n 20 jupyter-notebook --no-browser --port $JPORT .
 ```
 
 Then run the script `jupyter.sh` in the `screen`:
@@ -143,7 +161,7 @@ In order to setup the tunnel, edit `~/.ssh/config`:
 host aura
 hostname aura.fi.muni.cz
 user YOUR_LOGIN_NAME
-ProxyCommand ssh -q -W %h:%p aisa.fi.muni.cz
+ProxyCommand ssh -q -W %h:%p YOUR_LOGIN_NAME@aisa.fi.muni.cz
 ``` 
 
 ### Connecting to the Jupyter notebook
@@ -176,6 +194,13 @@ My general practice is to extract stable pieces of code to separate python packa
 The packages should be either installed via pip or placed to the same folder where the notebook / jupyter runs from (i.e., where you start `jupyter.sh` script). 
 
 If you change the python code outside the notebook (e.g., package update) you need to restart the Jupyter kernel (e.g., via web interface) so Jupyter loads new code version.
+
+### Troubleshooting
+
+*SSL module could not be compiled*
+
+Try: `echo $LIBRARY_PATH` to make sure you have `openssl-1.1.1` as the first element on this path. 
+Unload all other openssl versions present.
 
 ### Summary
 
