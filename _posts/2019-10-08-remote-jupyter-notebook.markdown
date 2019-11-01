@@ -78,7 +78,7 @@ To compile on Aura we need to adjust environment variables so compiler can find 
 
 ```bash
 MAKEFLAGS=-j26 \
-CFLAGS="-I/packages/run.64/openssl-1.1.1/include \ 
+CFLAGS="-I/packages/run.64/openssl-1.1.1/include \
         -I/packages/run.64/libffi-3.2.1/lib/libffi-3.2.1/include \
         -I/packages/share/readline-8.0/include \
         -I/packages/share/zlib-1.2.11/include \
