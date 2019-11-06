@@ -218,4 +218,59 @@ Each time your workstation drops network connection:
 - Connect to the server with the SSH which creates the local TCP tunnel so you can access the Jupyter notebook web server on your workstation.
 
 
+### Notes for building dependencies from the source
+
+- Build deps with `-fPIC`, position independent code, so the linking to shared libs works
+
+
+Example how to build readline-8.0 on RHEL:
+
+- Compile `ncurses-5.9` with `-fPIC`
+- Compile readline:
+
+```bash
+CFLAGS="-fPIC -I/packages/share/ncurses-5.9/include" \
+LDFLAGS="-L/packages/run.64/ncurses-5.9/lib"  \
+CPPFLAGS="-fPIC -I/packages/share/ncurses-5.9/include" \
+SHLIB_LIBS="-lncurses" \
+./configure --prefix=/packages/share/readline-8.0/ --exec-prefix=/packages/run.64/readline-8.0/ --with-curses
+make -j44 VERBOSE=1
+
+# re-link final libraries manually, add -lncurses
+cd shlib
+gcc -shared -Wl,-soname,libreadline.so.8.0 -L/packages/run.64/ncurses-5.9/lib -Wl,-rpath,/packages/run.64/readline-8.0/lib -Wl,-soname,`basename libreadline.so.8.0 .0` -o libreadline.so.8.0 readline.so vi_mode.so funmap.so keymaps.so parens.so search.so rltty.so complete.so bind.so isearch.so display.so signals.so util.so kill.so undo.so macro.so input.so callback.so terminal.so text.so nls.so misc.so history.so histexpand.so histfile.so histsearch.so shell.so mbutil.so tilde.so colors.so parse-colors.so xmalloc.so xfree.so compat.so -lncurses
+gcc -shared -Wl,-soname,libhistory.so.8.0 -L/packages/run.64/ncurses-5.9/lib -Wl,-rpath,/packages/run.64/readline-8.0/lib -Wl,-soname,`basename libhistory.so.8.0 .0` -o libhistory.so.8.0 history.so histexpand.so histfile.so histsearch.so shell.so mbutil.so xmalloc.so xfree.so -lncurses
+
+make install
+```
+
+Module file example:
+
+```
+#%Module1.0
+#!
+#! Title: readline
+#! Platforms: rhel8
+#! Version: 8.0
+#! Description: Console lib
+#!
+#!
+#!
+proc ModulesHelp {} {
+global ModulesCurrentModulefile
+puts stdout "modulehelp $ModulesCurrentModulefile"
+}
+
+module add pkg-config
+
+prepend-path PATH               /packages/run.64/readline-8.0/bin
+prepend-path LD_LIBRARY_PATH    /packages/run.64/readline-8.0/lib
+prepend-path MANPATH            /packages/share/readline-8.0/share/man
+prepend-path C_INCLUDE_PATH     /packages/share/readline-8.0/include
+prepend-path CPLUS_INCLUDE_PATH /packages/share/readline-8.0/include
+prepend-path LIBRARY_PATH       /packages/run.64/readline-8.0/lib
+prepend-path PKG_CONFIG_PATH    /packages/run.64/readline-8.0/lib/pkgconfig
+```
+
+
 [pyenv]: https://github.com/pyenv/pyenv
