@@ -35,7 +35,7 @@ As we don't have root privileges we need to install custom Python version so we 
 We use [pyenv] for this purpose, which enables us to build and use custom python versions.
 
 ### 1. Requirements
-- `openssl 1.1.1`
+- `openssl 1.1.1b`
 - `zlib`
 - `libffi`
 - `bzip2` 
@@ -49,7 +49,7 @@ Unless said otherwise, run all commands on the server.
 To build the Pyenv on Aisa/Aura servers you can use module system to add all required dependencies:
 
 ```bash
-module load openssl-1.1.1 zlib-1.2.11 ncurses-5.9 readline-7.0 libffi-3.2.1 bzip2 \
+module load zlib-1.2.11 ncurses-5.9 readline-7.0 libffi-3.2.1 bzip2-1.0.8 \
        xz-5.2.4 sqlite-3.29.0 mariadb-client-8.0.17 graphviz-2.26.3 
 ```
 
@@ -67,44 +67,41 @@ exec "$SHELL"
 
 ### 3. Pyenv build
 
-Now you need to build the Python version, we will use `3.7.2`
+Now you need to build the Python version, we will use `3.7.3`
 
 ```bash
-pyenv install -v 3.7.2
-pyenv global 3.7.2
+pyenv install -v 3.7.3
+pyenv global 3.7.3
 ```
 
 To compile on Aura we need to adjust environment variables so compiler can find loaded modules:
 
 ```bash
 MAKEFLAGS=-j42 \
-CFLAGS="-I/packages/run.64/openssl-1.1.1/include \
-        -I/packages/run.64/libffi-3.2.1/lib/libffi-3.2.1/include \
+CFLAGS="-I/packages/run.64/libffi-3.2.1/lib/libffi-3.2.1/include \
         -I/packages/share/readline-7.0/include \
         -I/packages/share/zlib-1.2.11/include \
         -I/packages/share/sqlite-3.29.0/include \
-        -I/packages/run.64/bzip2-1.0.2/include \
+        -I/packages/share/bzip2-1.0.8/include \
         -I/packages/share/ncurses-5.9/include \
         -I/packages/share/xz-5.2.4/include" \
-LDFLAGS="-L/packages/run.64/openssl-1.1.1/lib/ \
-        -L/packages/run.64/libffi-3.2.1/lib64 \
+LDFLAGS="-L/packages/run.64/libffi-3.2.1/lib64 \
         -L/packages/run.64/readline-7.0/lib \
         -L/packages/run.64/zlib-1.2.11/lib \
         -L/packages/run.64/sqlite-3.29.0/lib \
         -L/packages/run.64/xz-5.2.4/lib \
         -L/packages/run.64/ncurses-5.9/lib \
-        -L/packages/run.64/bzip2-1.0.2/lib"  \
-CPPFLAGS="-I/packages/run.64/openssl-1.1.1/include \
-        -I/packages/run.64/libffi-3.2.1/lib/libffi-3.2.1/include \
+        -L/packages/run.64/bzip2-1.0.8/lib"  \
+CPPFLAGS="-I/packages/run.64/libffi-3.2.1/lib/libffi-3.2.1/include \
         -I/packages/share/readline-7.0/include \
         -I/packages/share/zlib-1.2.11/include \
         -I/packages/share/sqlite-3.29.0/include \
-        -I/packages/run.64/bzip2-1.0.2/include \
+        -I/packages/share/bzip2-1.0.8/include \
         -I/packages/share/ncurses-5.9/include \
         -I/packages/share/xz-5.2.4/include"  \
 CONFIGURE_OPTS="--with-openssl=/packages/run.64/openssl-1.1.1"  \
 LD_RUN_PATH=$LIBRARY_PATH \
-pyenv install -v 3.7.2
+pyenv install -v 3.7.3
 ```
 
 Now you can install additional python packages, including jupyter and others that you may find helpful:
