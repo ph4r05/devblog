@@ -102,6 +102,8 @@ CPPFLAGS="-I/packages/run.64/libffi-3.2.1/lib/libffi-3.2.1/include \
 CONFIGURE_OPTS="--with-openssl=/packages/run.64/openssl-1.1.1"  \
 LD_RUN_PATH=$LIBRARY_PATH \
 pyenv install -v 3.7.3
+pyenv global 3.7.3
+pyenv local 3.7.3
 ```
 
 Now you can install additional python packages, including jupyter and others that you may find helpful:
