@@ -128,9 +128,10 @@ Create following file `jupyter.sh` on the server:
 : "${JPORT:=8876}"  # unique port per user
 
 # Dependency loading for MUNI RHEL8 machines
-module load openssl-1.1.1 zlib-1.2.11 ncurses-5.9 readline-7.0 libffi-3.2.1 bzip2 xz-5.2.4 sqlite-3.29.0 mariadb-client-8.0.17 graphviz-2.26.3 
+module load zlib-1.2.11 ncurses-5.9 readline-7.0 libffi-3.2.1 bzip2-1.0.8 xz-5.2.4 sqlite-3.29.0 mariadb-client-8.0.17 graphviz-2.26.3 
 
 # Run the notebook in the terminal
+pyenv local 3.7.3
 nice -n 20 jupyter-notebook --no-browser --port $JPORT .
 ```
 
